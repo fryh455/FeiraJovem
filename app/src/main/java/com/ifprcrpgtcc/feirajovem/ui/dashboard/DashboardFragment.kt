@@ -1,4 +1,4 @@
-package com.jailton.androidapptemplate.ui.dashboard
+package com.ifprcrpgtcc.feirajovem.ui.dashboard
 
 import android.app.Activity
 import android.content.Intent
@@ -20,12 +20,10 @@ import com.bumptech.glide.Glide
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageReference
-import com.jailton.androidapptemplate.R
-import com.jailton.androidapptemplate.baseclasses.Item
-import com.jailton.androidapptemplate.databinding.FragmentDashboardBinding
-import kotlinx.coroutines.CoroutineStart
+import com.ifprcrpgtcc.feirajovem.R
+import com.ifprcrpgtcc.feirajovem.baseclasses.Item
+import com.ifprcrpgtcc.feirajovem.databinding.FragmentDashboardBinding
 
 
 class DashboardFragment : Fragment() {

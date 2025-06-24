@@ -1,4 +1,4 @@
-package com.jailton.androidapptemplate.ui.home
+package com.ifprcrpgtcc.feirajovem.ui.home
 
 import android.content.Context
 import android.os.Bundle
@@ -18,9 +18,9 @@ import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
-import com.jailton.androidapptemplate.R
-import com.jailton.androidapptemplate.baseclasses.Item
-import com.jailton.androidapptemplate.databinding.FragmentHomeBinding
+import com.ifprcrpgtcc.feirajovem.R
+import com.ifprcrpgtcc.feirajovem.baseclasses.Item
+import com.ifprcrpgtcc.feirajovem.databinding.FragmentHomeBinding
 
 class HomeFragment : Fragment() {
 

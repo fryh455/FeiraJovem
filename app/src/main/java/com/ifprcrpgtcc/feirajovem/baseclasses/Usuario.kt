@@ -1,4 +1,4 @@
-package com.jailton.androidapptemplate.baseclasses
+package com.ifprcrpgtcc.feirajovem.baseclasses
 
 data class Usuario(
     var key: String? = null,

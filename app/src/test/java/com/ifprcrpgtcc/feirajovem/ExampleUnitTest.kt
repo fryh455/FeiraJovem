@@ -1,4 +1,4 @@
-package com.jailton.androidapptemplate
+package com.ifprcrpgtcc.feirajovem
 
 import org.junit.Test
 

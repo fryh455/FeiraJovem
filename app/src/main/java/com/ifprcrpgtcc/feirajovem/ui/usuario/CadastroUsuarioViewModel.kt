@@ -1,4 +1,4 @@
-package com.jailton.androidapptemplate.ui.usuario
+package com.ifprcrpgtcc.feirajovem.ui.usuario
 
 import androidx.lifecycle.ViewModel
 

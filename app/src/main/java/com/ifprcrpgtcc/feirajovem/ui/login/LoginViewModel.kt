@@ -1,4 +1,4 @@
-package com.jailton.androidapptemplate.ui.login
+package com.ifprcrpgtcc.feirajovem.ui.login
 
 import androidx.lifecycle.ViewModel
 

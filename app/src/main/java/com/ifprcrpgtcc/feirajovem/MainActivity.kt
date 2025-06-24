@@ -1,4 +1,4 @@
-package com.jailton.androidapptemplate
+package com.ifprcrpgtcc.feirajovem
 
 import android.os.Bundle
 import com.google.android.material.bottomnavigation.BottomNavigationView
@@ -8,7 +8,7 @@ import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
 
-import com.jailton.androidapptemplate.databinding.ActivityMainBinding
+import com.ifprcrpgtcc.feirajovem.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
 
