@@ -2,7 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Permissões necessárias -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
+    <uses-permission android:name="android.permission.USE_CREDENTIALS" />
+    <uses-permission android:name="android.permission.MANAGE_ACCOUNTS" />
 
     <application
         android:allowBackup="true"
@@ -14,6 +18,8 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AndroidAppTemplate"
         tools:targetApi="35">
+
+        <!-- Activity de Login (Tela inicial) -->
         <activity
             android:name=".ui.login.LoginActivity"
             android:exported="true"
@@ -23,8 +29,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".MainActivity" />
-        <activity android:name=".ui.usuario.CadastroUsuarioActivity" />
-    </application>
 
+        <!-- Activity Principal -->
+        <activity android:name=".MainActivity" />
+
+        <!-- Activity de Cadastro -->
+        <activity android:name=".ui.usuario.CadastroUsuarioActivity" />
+
+        <!-- Necessário para integração com Google Play Services -->
+        <meta-data
+            android:name="com.google.android.gms.version"
+            android:value="@integer/google_play_services_version" />
+    </application>
 </manifest>

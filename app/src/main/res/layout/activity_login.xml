@@ -127,6 +127,8 @@
             android:layout_height="wrap_content"
             android:minHeight="48dp"
             android:hint="Email"
+            android:textColor="@android:color/black"
+            android:textColorHint="#808080"
             android:background="@drawable/edit_text_selector"
             android:inputType="textEmailAddress"
             android:padding="12dp"/>
@@ -139,6 +141,8 @@
             android:minHeight="48dp"
             android:layout_marginTop="12dp"
             android:hint="Senha"
+            android:textColor="@android:color/black"
+            android:textColorHint="#808080"
             android:background="@drawable/edit_text_selector"
             android:inputType="textPassword"
             android:padding="12dp"/>
@@ -193,5 +197,18 @@
             android:focusable="true"
             android:gravity="center"/>
     </LinearLayout>
+
+    <!-- ProgressBar centralizada -->
+    <ProgressBar
+        android:id="@+id/progressBarLogin"
+        style="?android:attr/progressBarStyleLarge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:layout_gravity="center"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

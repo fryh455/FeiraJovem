@@ -5,4 +5,7 @@
     <string name="title_profile">Profile</string>
 
     <string name="title_itens">Itens</string>
+
+    <!-- Necessário para Google Sign-In -->
+    <string name="default_web_client_id">291845214447-r5th0m343t0vo38nds6v3g3tbb7cmsmh.apps.googleusercontent.com</string>
 </resources>

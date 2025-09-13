@@ -9,96 +9,86 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
-import android.widget.EditText
-import android.widget.ImageView
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.ViewModelProvider
 import com.bumptech.glide.Glide
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.storage.StorageReference
 import com.ifprcrpgtcc.feirajovem.R
 import com.ifprcrpgtcc.feirajovem.baseclasses.Item
 import com.ifprcrpgtcc.feirajovem.databinding.FragmentDashboardBinding
 
-
 class DashboardFragment : Fragment() {
 
     private var _binding: FragmentDashboardBinding? = null
+    private val binding get() = _binding!!
 
-    private lateinit var enderecoEditText: EditText
+    // Views
     private lateinit var itemImageView: ImageView
+    private lateinit var selectImageButton: Button
+    private lateinit var salvarButton: Button
+    private lateinit var tituloEditText: EditText
+    private lateinit var descricaoEditText: EditText
+    private lateinit var precoEditText: EditText
+    private lateinit var enderecoEditText: EditText
+    private var duracaoSpinner: Spinner? = null
+
     private var imageUri: Uri? = null
 
-
-    //TODO("Declare aqui as outras variaveis do tipo EditText que foram inseridas no layout")
-    private lateinit var salvarButton: Button
-    private lateinit var selectImageButton: Button
+    // Firebase
     private lateinit var databaseReference: DatabaseReference
-    private lateinit var storageReference: StorageReference
     private lateinit var auth: FirebaseAuth
 
     companion object {
         private const val PICK_IMAGE_REQUEST = 1
+        private const val TAG = "DashboardFragment"
     }
 
-    // This property is only valid between onCreateView and
-    // onDestroyView.
-    private val binding get() = _binding!!
-
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
     ): View {
-        val dashboardViewModel = ViewModelProvider(this).get(DashboardViewModel::class.java)
-
         _binding = FragmentDashboardBinding.inflate(inflater, container, false)
-        val root: View = binding.root
+        val view = binding.root
 
-        val textView: TextView = binding.textDashboard
-        dashboardViewModel.text.observe(viewLifecycleOwner) {
-            textView.text = it
-        }
-
-        val view = inflater.inflate(R.layout.fragment_dashboard, container, false)
-        itemImageView = view.findViewById(R.id.image_item)
-        salvarButton = view.findViewById(R.id.salvarItemButton)
-        selectImageButton = view.findViewById(R.id.button_select_image)
-        enderecoEditText = view.findViewById(R.id.enderecoItemEditText)
-        //TODO("Capture aqui os outro campos que foram inseridos no layout. Por exemplo, ate
-        // o momento so foi capturado o endereco (EditText)")
-
+        // Inicializa Firebase
         auth = FirebaseAuth.getInstance()
+        databaseReference = FirebaseDatabase.getInstance().getReference("itens")
 
-        try {
-            //val storage = FirebaseStorage.getInstance()
-            //storageReference = FirebaseStorage.getInstance()
-                //.getReferenceFromUrl("gs://apptemplate-35820.appspot.com")
-                //.child("itens_images")
-            //storageReference = FirebaseStorage.getInstance().getReference().child("itens_images")
-        } catch (e: Exception) {
-            Log.e("FirebaseStorage", "Erro ao obter referência para o Firebase Storage", e)
-            // Trate o erro conforme necessario, por exemplo:
-            Toast.makeText(context, "Erro ao acessar o Firebase Storage", Toast.LENGTH_SHORT).show()
+        // Inicializa componentes
+        itemImageView = view.findViewById(R.id.image_item)
+        selectImageButton = view.findViewById(R.id.button_select_image)
+        salvarButton = view.findViewById(R.id.salvarItemButton)
+        tituloEditText = view.findViewById(R.id.editTituloProduto)
+        descricaoEditText = view.findViewById(R.id.editDescricaoProduto)
+        precoEditText = view.findViewById(R.id.editPrecoProduto)
+        enderecoEditText = view.findViewById(R.id.enderecoItemEditText)
+
+        // Spinner (pode ser null se não adicionado ao layout)
+        duracaoSpinner = view.findViewById(R.id.spinnerDuracao)
+        if (duracaoSpinner != null) {
+            val options = listOf("24 horas", "3 dias", "7 dias (máx)")
+            val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, options)
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            duracaoSpinner!!.adapter = adapter
+            // default: 7 dias
+            duracaoSpinner!!.setSelection(options.indexOf("7 dias (máx)"))
+        } else {
+            Log.w(TAG, "spinnerDuracao não encontrado no layout. Usarei 7 dias como padrão.")
         }
 
+        // Botão selecionar imagem
         selectImageButton.setOnClickListener {
             openFileChooser()
         }
 
+        // Botão salvar item
         salvarButton.setOnClickListener {
             salvarItem()
         }
 
         return view
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
     }
 
     private fun openFileChooser() {
@@ -108,67 +98,103 @@ class DashboardFragment : Fragment() {
         startActivityForResult(intent, PICK_IMAGE_REQUEST)
     }
 
-    private fun salvarItem() {
-        //TODO("Capture aqui o conteudo que esta nos outros editTexts que foram criados")
-        val endereco = enderecoEditText.text.toString().trim()
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
 
-        if (endereco.isEmpty() || imageUri == null) {
-            Toast.makeText(context, "Por favor, preencha todos os campos", Toast.LENGTH_SHORT)
-                .show()
-            return
+        if (requestCode == PICK_IMAGE_REQUEST && resultCode == Activity.RESULT_OK && data?.data != null) {
+            imageUri = data.data
+            Glide.with(this).load(imageUri).into(itemImageView)
         }
-        uploadImageToFirestore()
     }
 
+    private fun salvarItem() {
+        val titulo = tituloEditText.text.toString().trim()
+        val descricao = descricaoEditText.text.toString().trim()
+        val preco = precoEditText.text.toString().trim()
+        val endereco = enderecoEditText.text.toString().trim()
 
-    private fun uploadImageToFirestore() {
-        if (imageUri != null) {
+        if (titulo.isEmpty() || descricao.isEmpty() || preco.isEmpty() || endereco.isEmpty() || imageUri == null) {
+            Toast.makeText(context, "Por favor, preencha todos os campos e selecione uma imagem.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // determina duração selecionada (em milissegundos)
+        val agora = System.currentTimeMillis()
+        val duracaoMillis = when (duracaoSpinner?.selectedItemPosition ?: 2) {
+            0 -> 24L * 60 * 60 * 1000    // 24 horas
+            1 -> 3L * 24 * 60 * 60 * 1000 // 3 dias
+            2 -> 7L * 24 * 60 * 60 * 1000 // 7 dias (padrão/máx)
+            else -> 7L * 24 * 60 * 60 * 1000
+        }
+        val expiracao = agora + duracaoMillis
+
+        uploadImageToBase64(titulo, descricao, preco, endereco, agora, expiracao)
+    }
+
+    private fun uploadImageToBase64(
+        titulo: String, descricao: String, preco: String, endereco: String,
+        dataCriacao: Long, dataExpiracao: Long
+    ) {
+        try {
             val inputStream = context?.contentResolver?.openInputStream(imageUri!!)
             val bytes = inputStream?.readBytes()
             inputStream?.close()
 
             if (bytes != null) {
                 val base64Image = Base64.encodeToString(bytes, Base64.DEFAULT)
-                val endereco = enderecoEditText.text.toString().trim()
-                //TODO("Capture aqui o conteudo que esta nos outros editTexts que foram criados")
 
-                val item = Item(endereco, base64Image)
+                val item = Item(
+                    titulo = titulo,
+                    descricao = descricao,
+                    preco = preco,
+                    endereco = endereco,
+                    imagemBase64 = base64Image,
+                    dataCriacao = dataCriacao,
+                    dataExpiracao = dataExpiracao
+                )
 
                 saveItemIntoDatabase(item)
             }
-        }
-    }
-
-
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == PICK_IMAGE_REQUEST && resultCode == Activity.RESULT_OK
-            && data != null && data.data != null
-        ) {
-            imageUri = data.data
-            Glide.with(this).load(imageUri).into(itemImageView)
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao converter imagem para Base64", e)
+            Toast.makeText(context, "Erro ao processar a imagem.", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun saveItemIntoDatabase(item: Item) {
-        //TODO("Altere a raiz que sera criada no seu banco de dados do realtime database.
-        // Renomeie a raiz itens")
-        databaseReference = FirebaseDatabase.getInstance().getReference("itens")
-
-        // Cria uma chave unica para o novo item
+        val userId = auth.uid ?: run {
+            Toast.makeText(context, "Usuário não autenticado.", Toast.LENGTH_SHORT).show()
+            return
+        }
         val itemId = databaseReference.push().key
+
         if (itemId != null) {
-            databaseReference.child(auth.uid.toString()).child(itemId).setValue(item)
+            databaseReference.child(userId).child(itemId).setValue(item)
                 .addOnSuccessListener {
-                    Toast.makeText(context, "Item cadastrado com sucesso!", Toast.LENGTH_SHORT)
-                        .show()
-                    requireActivity().supportFragmentManager.popBackStack()
-                }.addOnFailureListener {
-                    Toast.makeText(context, "Falha ao cadastrar o item", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Item cadastrado com sucesso!", Toast.LENGTH_SHORT).show()
+                    limparCampos()
+                }
+                .addOnFailureListener {
+                    Toast.makeText(context, "Falha ao cadastrar o item.", Toast.LENGTH_SHORT).show()
                 }
         } else {
-            Toast.makeText(context, "Erro ao gerar o ID do item", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Erro ao gerar ID do item.", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun limparCampos() {
+        tituloEditText.text.clear()
+        descricaoEditText.text.clear()
+        precoEditText.text.clear()
+        enderecoEditText.text.clear()
+        itemImageView.setImageResource(android.R.color.transparent)
+        imageUri = null
+        // opcional: reset spinner para padrão
+        duracaoSpinner?.setSelection(2)
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 }

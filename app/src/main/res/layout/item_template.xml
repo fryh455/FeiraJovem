@@ -5,37 +5,72 @@
     android:layout_height="wrap_content"
     android:padding="8dp">
 
+    <!-- Container horizontal: imagem + detalhes do produto -->
     <LinearLayout
         android:orientation="horizontal"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="8dp">
 
+        <!-- Imagem do Produto -->
         <ImageView
             android:id="@+id/item_image"
             android:layout_width="100dp"
             android:layout_height="100dp"
             android:scaleType="centerCrop"
-            android:layout_marginEnd="8dp" />
+            android:background="#E0E0E0"
+            android:layout_marginEnd="8dp"
+            android:contentDescription="Imagem do produto" />
 
+        <!-- Informações do Produto -->
         <LinearLayout
             android:orientation="vertical"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1">
 
+            <!-- Título -->
+            <TextView
+                android:id="@+id/item_titulo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Título do Produto"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="4dp" />
+
+            <!-- Descrição -->
+            <TextView
+                android:id="@+id/item_descricao"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Descrição do produto"
+                android:textSize="14sp"
+                android:layout_marginBottom="4dp" />
+
+            <!-- Preço -->
+            <TextView
+                android:id="@+id/item_preco"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Preço: R$ 0,00"
+                android:textColor="#2979FF"
+                android:textStyle="bold"
+                android:textSize="14sp"
+                android:layout_marginBottom="4dp" />
+
+            <!-- Endereço (mantendo ID original) -->
             <TextView
                 android:id="@+id/item_endereco"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Endereço:"
-                android:textSize="16sp"
+                android:text="Endereço: Não informado"
+                android:textSize="14sp"
                 android:textStyle="bold" />
-
-            <!-- Campos futuros aqui -->
         </LinearLayout>
     </LinearLayout>
 
+    <!-- Linha separadora -->
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"

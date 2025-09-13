@@ -2,112 +2,79 @@ package com.ifprcrpgtcc.feirajovem.ui.home
 
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.LinearLayout
-import android.widget.TextView
-import androidx.fragment.app.Fragment
-import android.util.Base64
-import android.widget.*
-import android.graphics.BitmapFactory
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.widget.SwitchCompat
-import com.bumptech.glide.Glide
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
+import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.firebase.database.*
 import com.ifprcrpgtcc.feirajovem.R
 import com.ifprcrpgtcc.feirajovem.baseclasses.Item
-import com.ifprcrpgtcc.feirajovem.databinding.FragmentHomeBinding
 
 class HomeFragment : Fragment() {
 
-    private var _binding: FragmentHomeBinding? = null
-
-    // This property is only valid between onCreateView and
-    // onDestroyView.
-    private val binding get() = _binding!!
+    private lateinit var recyclerView: RecyclerView
+    private lateinit var feedAdapter: FeedAdapter
+    private lateinit var databaseRef: DatabaseReference
+    private val listaItens = mutableListOf<Item>()
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        val view = inflater.inflate(R.layout.fragment_home, container, false)
+        val view = inflater.inflate(R.layout.fragment_feed, container, false)
 
-        val container = view.findViewById<LinearLayout>(R.id.itemContainer)
-        carregarItensMarketplace(container)
+        // Configura RecyclerView
+        recyclerView = view.findViewById(R.id.recyclerViewFeed)
+        recyclerView.layoutManager = LinearLayoutManager(requireContext())
+        feedAdapter = FeedAdapter(listaItens) { item ->
+            Toast.makeText(requireContext(), "Ler mais de ${item.titulo}", Toast.LENGTH_SHORT).show()
+        }
+        recyclerView.adapter = feedAdapter
 
-        val switch = view.findViewById<SwitchCompat>(R.id.darkModeSwitch)
-        habilitaDarkMode(switch)
+        // Firebase
+        databaseRef = FirebaseDatabase.getInstance().getReference("itens")
+
+        carregarItensMarketplace()
 
         return view
     }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-
-    fun carregarItensMarketplace(container: LinearLayout) {
-        val databaseRef = FirebaseDatabase.getInstance().getReference("itens")
-
-        databaseRef.addListenerForSingleValueEvent(object : ValueEventListener {
+    /** Carregar produtos do Firebase */
+    private fun carregarItensMarketplace() {
+        databaseRef.addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                container.removeAllViews()
+                val novaLista = mutableListOf<Item>()
 
                 for (userSnapshot in snapshot.children) {
                     for (itemSnapshot in userSnapshot.children) {
-                        val item = itemSnapshot.getValue(Item::class.java) ?: continue
-
-                        val itemView = LayoutInflater.from(container.context)
-                            .inflate(R.layout.item_template, container, false)
-
-                        val imageView = itemView.findViewById<ImageView>(R.id.item_image)
-                        val enderecoView = itemView.findViewById<TextView>(R.id.item_endereco)
-
-                        enderecoView.text = "Endereço: ${item.endereco ?: "Não informado"}"
-
-                        if (!item.imageUrl.isNullOrEmpty()) {
-                            Glide.with(container.context).load(item.imageUrl).into(imageView)
-                        } else if (!item.base64Image.isNullOrEmpty()) {
-                            try {
-                                val bytes = Base64.decode(item.base64Image, Base64.DEFAULT)
-                                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                                imageView.setImageBitmap(bitmap)
-                            } catch (_: Exception) {}
+                        val item = itemSnapshot.getValue(Item::class.java)
+                        item?.let {
+                            val agora = System.currentTimeMillis()
+                            // Verifica se ainda não expirou
+                            if (it.dataExpiracao == 0L || it.dataExpiracao > agora) {
+                                novaLista.add(it)
+                            } else {
+                                // Remove do banco se expirou
+                                itemSnapshot.ref.removeValue()
+                                Log.d("HomeFragment", "Item expirado removido: ${it.titulo}")
+                            }
                         }
-
-                        container.addView(itemView)
                     }
                 }
+
+                feedAdapter.atualizarLista(novaLista)
             }
 
             override fun onCancelled(error: DatabaseError) {
-                Toast.makeText(container.context, "Erro ao carregar dados", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "Erro ao carregar feed", Toast.LENGTH_SHORT).show()
             }
         })
-    }
-
-    fun habilitaDarkMode(switch: SwitchCompat){
-
-        val prefs = requireActivity().getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
-
-        // Estado salvo
-        val darkMode = prefs.getBoolean("dark_mode", false)
-        switch.isChecked = darkMode
-        AppCompatDelegate.setDefaultNightMode(
-            if (darkMode) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
-        )
-
-        // Listener de mudança
-        switch.setOnCheckedChangeListener { _, isChecked ->
-            prefs.edit().putBoolean("dark_mode", isChecked).apply()
-            AppCompatDelegate.setDefaultNightMode(
-                if (isChecked) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
-            )
-        }
     }
 }
