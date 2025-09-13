@@ -29,7 +29,7 @@ class LoginActivity : AppCompatActivity() {
     private lateinit var loginButton: Button
     private lateinit var registerLink: TextView
     private lateinit var firebaseAuth: FirebaseAuth
-    private lateinit var btnGoogleSignIn: SignInButton
+    private lateinit var btnGoogleSignIn: Button
     private lateinit var googleSignInClient: GoogleSignInClient
 
     companion object {
@@ -50,7 +50,7 @@ class LoginActivity : AppCompatActivity() {
         passwordEditText = findViewById(R.id.edit_text_password)
         loginButton = findViewById(R.id.button_login)
         registerLink = findViewById(R.id.registerLink)
-        btnGoogleSignIn = findViewById<SignInButton>(R.id.btnGoogleSignIn)
+        btnGoogleSignIn = findViewById<Button>(R.id.btnGoogleSignIn)
 
         val registerLink: TextView = findViewById(R.id.registerLink)
         registerLink.setOnClickListener {
