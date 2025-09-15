@@ -4,9 +4,9 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="8dp"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="6dp"
+    android:layout_margin="6dp"
+    app:cardCornerRadius="18dp"
+    app:cardElevation="5dp"
     android:foreground="?attr/selectableItemBackground">
 
     <LinearLayout
@@ -15,15 +15,16 @@
         android:orientation="vertical"
         android:padding="8dp">
 
-        <!-- Imagem do anúncio -->
+        <!-- Imagem -->
         <ImageView
             android:id="@+id/imageAnuncio"
             android:layout_width="match_parent"
-            android:layout_height="150dp"
+            android:layout_height="120dp"
             android:scaleType="centerCrop"
-            android:src="@drawable/ic_launcher_background" />
+            android:adjustViewBounds="true"
+            android:background="@drawable/edit_text_background" />
 
-        <!-- Título do produto -->
+        <!-- Título -->
         <TextView
             android:id="@+id/textTitulo"
             android:layout_width="wrap_content"
@@ -31,7 +32,7 @@
             android:layout_marginTop="8dp"
             android:text="Título do Produto"
             android:textStyle="bold"
-            android:textSize="16sp"
+            android:textSize="14sp"
             android:textColor="#000000" />
 
         <!-- Avaliação -->
@@ -40,7 +41,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Avaliação: ★★★★★ (5)"
-            android:textSize="14sp"
+            android:textSize="12sp"
             android:layout_marginTop="4dp"
             android:textColor="#555555"/>
 
@@ -51,23 +52,23 @@
             android:layout_height="wrap_content"
             android:text="R$ 0,00"
             android:textStyle="bold"
-            android:textSize="18sp"
+            android:textSize="14sp"
             android:textColor="#FF9800"
             android:layout_marginTop="4dp" />
 
-        <!-- Descrição -->
+        <!-- Descrição resumida -->
         <TextView
             android:id="@+id/textDescricao"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="2"
-            android:text="Descrição do produto aparece aqui."
-            android:textSize="14sp"
+            android:text="Descrição resumida do produto"
+            android:textSize="12sp"
             android:textColor="#666666"
             android:layout_marginTop="4dp" />
 
-        <!-- Ler mais -->
+        <!-- Botão Ler Mais -->
         <TextView
             android:id="@+id/textLerMais"
             android:layout_width="wrap_content"
@@ -75,8 +76,41 @@
             android:text="ler mais"
             android:textStyle="bold"
             android:textColor="#FF9800"
-            android:textSize="14sp"
+            android:textSize="12sp"
             android:layout_marginTop="4dp" />
+
+        <!-- Linha de botões -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginTop="8dp">
+
+            <Button
+                android:id="@+id/btnAvaliar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Avaliar"
+                android:textSize="12sp"
+                android:backgroundTint="#4CAF50"
+                android:textColor="@android:color/white"
+                android:paddingHorizontal="12dp"/>
+
+            <Space
+                android:layout_width="12dp"
+                android:layout_height="wrap_content" />
+
+            <Button
+                android:id="@+id/btnDeletar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Deletar"
+                android:textSize="12sp"
+                android:backgroundTint="#F44336"
+                android:textColor="@android:color/white"
+                android:paddingHorizontal="12dp"/>
+        </LinearLayout>
 
     </LinearLayout>
 </androidx.cardview.widget.CardView>

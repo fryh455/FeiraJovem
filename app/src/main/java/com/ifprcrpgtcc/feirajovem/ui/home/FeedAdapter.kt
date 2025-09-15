@@ -5,6 +5,7 @@ import android.util.Base64
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
@@ -13,7 +14,9 @@ import com.ifprcrpgtcc.feirajovem.baseclasses.Item
 
 class FeedAdapter(
     private val listaItens: MutableList<Item>,
-    private val onLerMaisClick: (Item) -> Unit
+    private val onLerMaisClick: (Item) -> Unit,
+    private val onAvaliarClick: (String, String) -> Unit,
+    private val onDeletarClick: (String, String) -> Unit
 ) : RecyclerView.Adapter<FeedAdapter.FeedViewHolder>() {
 
     class FeedViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -23,6 +26,8 @@ class FeedAdapter(
         val preco: TextView = itemView.findViewById(R.id.textPreco)
         val descricao: TextView = itemView.findViewById(R.id.textDescricao)
         val lerMais: TextView = itemView.findViewById(R.id.textLerMais)
+        val btnAvaliar: Button = itemView.findViewById(R.id.btnAvaliar)
+        val btnDeletar: Button = itemView.findViewById(R.id.btnDeletar)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): FeedViewHolder {
@@ -33,22 +38,23 @@ class FeedAdapter(
     override fun onBindViewHolder(holder: FeedViewHolder, position: Int) {
         val item = listaItens[position]
 
-        // Título
         holder.titulo.text = item.titulo
-
-        // Avaliação
-        holder.avaliacao.text = "Avaliação: ★ ${item.avaliacao}"
-
-        // Preço
+        holder.avaliacao.text = "Avaliação: ★ ${item.avaliacao} (${item.avaliacao.toInt()})"
         holder.preco.text = "R$ ${item.preco}"
-
-        // Descrição resumida
         holder.descricao.text = item.descricao
 
-        // Ler mais
         holder.lerMais.setOnClickListener { onLerMaisClick(item) }
+        holder.btnAvaliar.setOnClickListener {
+            if (!item.itemId.isNullOrEmpty() && !item.userId.isNullOrEmpty()) {
+                onAvaliarClick(item.itemId!!, item.userId!!)
+            }
+        }
+        holder.btnDeletar.setOnClickListener {
+            if (!item.itemId.isNullOrEmpty() && !item.userId.isNullOrEmpty()) {
+                onDeletarClick(item.itemId!!, item.userId!!)
+            }
+        }
 
-        // Decodificar imagem Base64
         if (!item.imagemBase64.isNullOrEmpty()) {
             try {
                 val bytes = Base64.decode(item.imagemBase64, Base64.DEFAULT)

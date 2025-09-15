@@ -18,6 +18,10 @@ import com.google.firebase.database.FirebaseDatabase
 import com.ifprcrpgtcc.feirajovem.R
 import com.ifprcrpgtcc.feirajovem.baseclasses.Item
 import com.ifprcrpgtcc.feirajovem.databinding.FragmentDashboardBinding
+import java.io.ByteArrayOutputStream
+import android.graphics.BitmapFactory
+import android.graphics.Bitmap
+import java.io.InputStream
 
 class DashboardFragment : Fragment() {
 
@@ -56,7 +60,7 @@ class DashboardFragment : Fragment() {
         auth = FirebaseAuth.getInstance()
         databaseReference = FirebaseDatabase.getInstance().getReference("itens")
 
-        // Inicializa componentes
+        // Inicializa componentes (mantendo os mesmos ids)
         itemImageView = view.findViewById(R.id.image_item)
         selectImageButton = view.findViewById(R.id.button_select_image)
         salvarButton = view.findViewById(R.id.salvarItemButton)
@@ -72,21 +76,16 @@ class DashboardFragment : Fragment() {
             val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, options)
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             duracaoSpinner!!.adapter = adapter
-            // default: 7 dias
             duracaoSpinner!!.setSelection(options.indexOf("7 dias (máx)"))
         } else {
             Log.w(TAG, "spinnerDuracao não encontrado no layout. Usarei 7 dias como padrão.")
         }
 
         // Botão selecionar imagem
-        selectImageButton.setOnClickListener {
-            openFileChooser()
-        }
+        selectImageButton.setOnClickListener { openFileChooser() }
 
         // Botão salvar item
-        salvarButton.setOnClickListener {
-            salvarItem()
-        }
+        salvarButton.setOnClickListener { salvarItem() }
 
         return view
     }
@@ -100,9 +99,9 @@ class DashboardFragment : Fragment() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-
         if (requestCode == PICK_IMAGE_REQUEST && resultCode == Activity.RESULT_OK && data?.data != null) {
             imageUri = data.data
+            // mostra preview com glide
             Glide.with(this).load(imageUri).into(itemImageView)
         }
     }
@@ -118,58 +117,48 @@ class DashboardFragment : Fragment() {
             return
         }
 
-        // determina duração selecionada (em milissegundos)
         val agora = System.currentTimeMillis()
         val duracaoMillis = when (duracaoSpinner?.selectedItemPosition ?: 2) {
-            0 -> 24L * 60 * 60 * 1000    // 24 horas
-            1 -> 3L * 24 * 60 * 60 * 1000 // 3 dias
-            2 -> 7L * 24 * 60 * 60 * 1000 // 7 dias (padrão/máx)
+            0 -> 24L * 60 * 60 * 1000
+            1 -> 3L * 24 * 60 * 60 * 1000
             else -> 7L * 24 * 60 * 60 * 1000
         }
         val expiracao = agora + duracaoMillis
 
-        uploadImageToBase64(titulo, descricao, preco, endereco, agora, expiracao)
-    }
-
-    private fun uploadImageToBase64(
-        titulo: String, descricao: String, preco: String, endereco: String,
-        dataCriacao: Long, dataExpiracao: Long
-    ) {
-        try {
-            val inputStream = context?.contentResolver?.openInputStream(imageUri!!)
-            val bytes = inputStream?.readBytes()
-            inputStream?.close()
-
-            if (bytes != null) {
-                val base64Image = Base64.encodeToString(bytes, Base64.DEFAULT)
-
-                val item = Item(
-                    titulo = titulo,
-                    descricao = descricao,
-                    preco = preco,
-                    endereco = endereco,
-                    imagemBase64 = base64Image,
-                    dataCriacao = dataCriacao,
-                    dataExpiracao = dataExpiracao
-                )
-
-                saveItemIntoDatabase(item)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro ao converter imagem para Base64", e)
-            Toast.makeText(context, "Erro ao processar a imagem.", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun saveItemIntoDatabase(item: Item) {
+        // Gerar chave antes para usar como id
         val userId = auth.uid ?: run {
             Toast.makeText(context, "Usuário não autenticado.", Toast.LENGTH_SHORT).show()
             return
         }
-        val itemId = databaseReference.push().key
+        val newKey = databaseReference.push().key
+        if (newKey == null) {
+            Toast.makeText(context, "Erro ao gerar ID do item.", Toast.LENGTH_SHORT).show()
+            return
+        }
 
-        if (itemId != null) {
-            databaseReference.child(userId).child(itemId).setValue(item)
+        // Converter imagem para base64 (mantendo sua estratégia)
+        try {
+            val inputStream: InputStream? = context?.contentResolver?.openInputStream(imageUri!!)
+            val bytes = inputStream?.readBytes()
+            inputStream?.close()
+
+            val base64Image = if (bytes != null) Base64.encodeToString(bytes, Base64.DEFAULT) else ""
+
+            val item = Item(
+                itemId = newKey,
+                userId = userId,
+                titulo = titulo,
+                descricao = descricao,
+                preco = preco,
+                endereco = endereco,
+                imagemBase64 = base64Image,
+                dataCriacao = agora,
+                dataExpiracao = expiracao,
+                avaliacao = 0f
+            )
+
+            // salva em /itens/{ownerId}/{itemId}
+            databaseReference.child(userId).child(newKey).setValue(item)
                 .addOnSuccessListener {
                     Toast.makeText(context, "Item cadastrado com sucesso!", Toast.LENGTH_SHORT).show()
                     limparCampos()
@@ -177,8 +166,10 @@ class DashboardFragment : Fragment() {
                 .addOnFailureListener {
                     Toast.makeText(context, "Falha ao cadastrar o item.", Toast.LENGTH_SHORT).show()
                 }
-        } else {
-            Toast.makeText(context, "Erro ao gerar ID do item.", Toast.LENGTH_SHORT).show()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao processar imagem", e)
+            Toast.makeText(context, "Erro ao processar a imagem.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -189,7 +180,6 @@ class DashboardFragment : Fragment() {
         enderecoEditText.text.clear()
         itemImageView.setImageResource(android.R.color.transparent)
         imageUri = null
-        // opcional: reset spinner para padrão
         duracaoSpinner?.setSelection(2)
     }
 
