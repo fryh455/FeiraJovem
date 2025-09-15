@@ -45,6 +45,16 @@
             android:layout_marginTop="4dp"
             android:textColor="#555555"/>
 
+        <!-- Tempo restante -->
+        <TextView
+            android:id="@+id/textTempoRestante"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Faltam 5 dias"
+            android:textSize="12sp"
+            android:textColor="#FF5722"
+            android:layout_marginTop="4dp" />
+
         <!-- Preço -->
         <TextView
             android:id="@+id/textPreco"

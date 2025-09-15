@@ -8,7 +8,8 @@ data class Item(
     val imagemBase64: String = "",
     val dataCriacao: Long = 0L,
     val dataExpiracao: Long = 0L,
-    val avaliacao: Float = 0f,
-    var itemId: String? = null, // preenchido ao carregar
-    var userId: String? = null  // preenchido ao carregar
+    var avaliacao: Float = 0f,           // Média exibida no feed
+    var mediaAvaliacao: Float = 0f,      // Média salva no Firebase
+    var itemId: String? = null,          // preenchido ao carregar
+    var userId: String? = null           // preenchido ao carregar
 )
