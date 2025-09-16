@@ -4,9 +4,13 @@
 
     <!-- Permissões necessárias -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
     <uses-permission android:name="android.permission.USE_CREDENTIALS" />
     <uses-permission android:name="android.permission.MANAGE_ACCOUNTS" />
+
+    <!-- Permissão para receber notificações do Firebase -->
+    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
 
     <application
         android:allowBackup="true"
@@ -36,9 +40,22 @@
         <!-- Activity de Cadastro -->
         <activity android:name=".ui.usuario.CadastroUsuarioActivity" />
 
+        <activity android:name=".ui.usuario.EditarPerfilActivity"
+            android:exported="true" />
+
         <!-- Necessário para integração com Google Play Services -->
         <meta-data
             android:name="com.google.android.gms.version"
             android:value="@integer/google_play_services_version" />
+
+        <!-- Serviço para receber notificações do Firebase -->
+        <service
+            android:name=".notifications.MyFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
     </application>
 </manifest>

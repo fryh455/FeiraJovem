@@ -61,7 +61,7 @@ dependencies {
     implementation(libs.jetbrains.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
 
-
+    implementation("com.google.firebase:firebase-messaging:24.0.0")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

@@ -1,10 +1,10 @@
-package com.ifprcrpgtcc.feirajovem.ui.dashboard
+package com.ifprcrpgtcc.feirajovem.ui.produtos
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 
-class DashboardViewModel : ViewModel() {
+class ProdutosViewModel : ViewModel() {
 
     private val _text = MutableLiveData<String>().apply {
         value = "Cadastro de "

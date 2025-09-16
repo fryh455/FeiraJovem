@@ -2,9 +2,7 @@ package com.ifprcrpgtcc.feirajovem.ui.usuario
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Button
-import android.widget.EditText
-import android.widget.Toast
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.google.firebase.auth.FirebaseAuth
@@ -14,7 +12,6 @@ import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.ifprcrpgtcc.feirajovem.R
 import com.ifprcrpgtcc.feirajovem.ui.login.LoginActivity
-
 
 // Modelo de dados do usuário que será salvo no Realtime Database
 data class Usuario(
@@ -30,7 +27,7 @@ class CadastroUsuarioActivity : AppCompatActivity() {
     private lateinit var registerEmailEditText: EditText
     private lateinit var registerPasswordEditText: EditText
     private lateinit var registerConfirmPasswordEditText: EditText
-    private lateinit var registerSchoolEditText: EditText
+    private lateinit var registerSchoolSpinner: Spinner
     private lateinit var registerButton: Button
     private lateinit var sairButton: Button
 
@@ -59,12 +56,18 @@ class CadastroUsuarioActivity : AppCompatActivity() {
         registerEmailEditText = findViewById(R.id.registerEmailEditText)
         registerPasswordEditText = findViewById(R.id.registerPasswordEditText)
         registerConfirmPasswordEditText = findViewById(R.id.registerConfirmPasswordEditText)
-        registerSchoolEditText = findViewById(R.id.registerSchoolEditText)
+        registerSchoolSpinner = findViewById(R.id.registerSchoolSpinner)
         registerButton = findViewById(R.id.salvarButton)
         sairButton = findViewById(R.id.sairButton)
 
         btnEntrarTab = findViewById(R.id.btn_entrar_tab)
         btnCadastrarTab = findViewById(R.id.btn_cadastrar_tab)
+
+        // Preenche o Spinner com as opções fixas
+        val escolas = listOf("Selecione sua escola", "IFPR-PG", "IFPR-Jaguariaíva", "IFPR-CWB")
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, escolas)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        registerSchoolSpinner.adapter = adapter
 
         // Ações das abas
         btnEntrarTab.setOnClickListener {
@@ -92,9 +95,6 @@ class CadastroUsuarioActivity : AppCompatActivity() {
         highlightTab(isEntrarSelected = false)
     }
 
-    /**
-     * Destaque visual das abas
-     */
     private fun highlightTab(isEntrarSelected: Boolean) {
         val darkGray = ContextCompat.getColor(this, R.color.gray_dark)
         val lightGray = ContextCompat.getColor(this, R.color.gray_light)
@@ -116,11 +116,11 @@ class CadastroUsuarioActivity : AppCompatActivity() {
         val email = registerEmailEditText.text.toString().trim()
         val senha = registerPasswordEditText.text.toString().trim()
         val confirmarSenha = registerConfirmPasswordEditText.text.toString().trim()
-        val escola = registerSchoolEditText.text.toString().trim()
+        val escola = registerSchoolSpinner.selectedItem.toString()
 
         // Validações
-        if (nome.isEmpty() || email.isEmpty() || senha.isEmpty() || confirmarSenha.isEmpty() || escola.isEmpty()) {
-            Toast.makeText(this, "Por favor, preencha todos os campos", Toast.LENGTH_SHORT).show()
+        if (nome.isEmpty() || email.isEmpty() || senha.isEmpty() || confirmarSenha.isEmpty() || escola == "Selecione sua escola") {
+            Toast.makeText(this, "Por favor, preencha todos os campos corretamente", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -165,9 +165,6 @@ class CadastroUsuarioActivity : AppCompatActivity() {
             }
     }
 
-    /**
-     * Envia email de verificação
-     */
     private fun sendEmailVerification(user: FirebaseUser) {
         user.sendEmailVerification()
             .addOnCompleteListener { task ->
@@ -179,9 +176,6 @@ class CadastroUsuarioActivity : AppCompatActivity() {
             }
     }
 
-    /**
-     * Atualiza o nome do usuário no perfil do Firebase
-     */
     private fun updateProfile(user: FirebaseUser, nome: String) {
         val profileUpdates = UserProfileChangeRequest.Builder()
             .setDisplayName(nome)

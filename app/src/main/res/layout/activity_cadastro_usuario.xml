@@ -42,7 +42,7 @@
             android:id="@+id/subtextCadastro"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="preencha todos os campos para realizar seu cadastro."
+            android:text="Preencha todos os campos para realizar seu cadastro."
             android:textSize="14sp"
             android:gravity="center"
             android:textColor="#7A7A7A"
@@ -133,17 +133,13 @@
             android:minHeight="48dp"
             android:layout_marginBottom="12dp"/>
 
-        <EditText
-            android:id="@+id/registerSchoolEditText"
+        <!-- Novo Spinner para Escolha da Escola -->
+        <Spinner
+            android:id="@+id/registerSchoolSpinner"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Escola"
-            android:inputType="text"
-            android:padding="14dp"
-            android:textColor="@android:color/black"
-            android:textColorHint="#808080"
             android:background="@drawable/edit_text_selector"
-            android:minHeight="48dp"
+            android:padding="14dp"
             android:layout_marginBottom="16dp"/>
 
         <!-- Botão cadastrar -->
@@ -180,6 +176,5 @@
             android:visibility="gone"
             android:minHeight="48dp"
             android:layout_marginBottom="8dp"/>
-
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>

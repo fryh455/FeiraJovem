@@ -29,6 +29,9 @@ class HomeFragment : Fragment() {
     private val listaItens = mutableListOf<Item>()
     private val listaFiltrada = mutableListOf<Item>()
 
+    // Cache para escolas dos usuários
+    private val mapaEscolasUsuarios = mutableMapOf<String, String>()
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -59,9 +62,56 @@ class HomeFragment : Fragment() {
         recyclerView.adapter = feedAdapter
 
         configurarBarraDePesquisa()
-        carregarItensMarketplace()
+
+        val currentUserId = auth.currentUser?.uid
+        if (currentUserId.isNullOrEmpty()) {
+            Toast.makeText(requireContext(), "Usuário não autenticado", Toast.LENGTH_SHORT).show()
+            return view
+        }
+
+        // Primeiro pega a escola do usuário logado
+        val userRef = FirebaseDatabase.getInstance().getReference("usuarios").child(currentUserId)
+
+        userRef.get().addOnSuccessListener { snapshot ->
+            val escolaUsuarioLogado = snapshot.child("escola").getValue(String::class.java)
+
+            if (!escolaUsuarioLogado.isNullOrEmpty()) {
+                // Depois carrega o mapa de todas as escolas dos usuários
+                carregarMapaEscolas {
+                    // Só carrega os itens depois que o mapa estiver pronto
+                    carregarItensMarketplace(escolaUsuarioLogado)
+                }
+            } else {
+                Toast.makeText(requireContext(), "Não foi possível identificar sua escola", Toast.LENGTH_SHORT).show()
+            }
+        }.addOnFailureListener {
+            Toast.makeText(requireContext(), "Erro ao carregar informações do usuário", Toast.LENGTH_SHORT).show()
+        }
 
         return view
+    }
+
+    /**
+     * Carrega todas as escolas dos usuários para um mapa em memória
+     */
+    private fun carregarMapaEscolas(onComplete: () -> Unit) {
+        val usuariosRef = FirebaseDatabase.getInstance().getReference("usuarios")
+
+        usuariosRef.addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                mapaEscolasUsuarios.clear()
+                for (userSnapshot in snapshot.children) {
+                    val userId = userSnapshot.key ?: continue
+                    val escola = userSnapshot.child("escola").getValue(String::class.java) ?: ""
+                    mapaEscolasUsuarios[userId] = escola
+                }
+                onComplete()
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Toast.makeText(requireContext(), "Erro ao carregar escolas dos usuários", Toast.LENGTH_SHORT).show()
+            }
+        })
     }
 
     /**
@@ -102,15 +152,20 @@ class HomeFragment : Fragment() {
     }
 
     /**
-     * Carrega os itens do Firebase e remove automaticamente os expirados
+     * Carrega os itens do Firebase filtrando pela escola do usuário logado
      */
-    private fun carregarItensMarketplace() {
+    private fun carregarItensMarketplace(escolaUsuarioLogado: String) {
         databaseRef.addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 listaItens.clear()
 
                 for (userSnapshot in snapshot.children) {
                     val userId = userSnapshot.key ?: continue
+                    val escolaDonoDoItem = mapaEscolasUsuarios[userId] ?: ""
+
+                    // Só processa se a escola do dono do item for igual à do usuário logado
+                    if (escolaDonoDoItem != escolaUsuarioLogado) continue
+
                     for (itemSnapshot in userSnapshot.children) {
                         val item = itemSnapshot.getValue(Item::class.java)
                         item?.let {
@@ -144,9 +199,6 @@ class HomeFragment : Fragment() {
         })
     }
 
-    /**
-     * Mostra dialog de confirmação antes de deletar produto
-     */
     private fun confirmarExclusao(itemId: String, userId: String) {
         val currentUserId = auth.uid
         if (currentUserId != userId) {
@@ -170,9 +222,6 @@ class HomeFragment : Fragment() {
             .show()
     }
 
-    /**
-     * Abre o dialog com a RatingBar para avaliar o produto
-     */
     private fun mostrarDialogAvaliacao(itemId: String, userId: String) {
         val currentUserId = auth.uid ?: return
 
@@ -206,9 +255,6 @@ class HomeFragment : Fragment() {
             .show()
     }
 
-    /**
-     * Calcula a média das avaliações e atualiza no banco
-     */
     private fun calcularMedia(itemId: String, userId: String) {
         val avaliacaoRef = databaseRef.child(userId).child(itemId).child("avaliacoes")
 

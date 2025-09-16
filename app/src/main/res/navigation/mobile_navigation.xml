@@ -13,9 +13,9 @@
 
     <fragment
         android:id="@+id/navigation_dashboard"
-        android:name="com.ifprcrpgtcc.feirajovem.ui.dashboard.DashboardFragment"
+        android:name="com.ifprcrpgtcc.feirajovem.ui.produtos.ProdutosFragment"
         android:label="@string/title_dashboard"
-        tools:layout="@layout/fragment_dashboard" />
+        tools:layout="@layout/fragment_cadastro_produtos" />
 
     <fragment
         android:id="@+id/navigation_profile"
