@@ -18,6 +18,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.*
 import com.ifprcrpgtcc.feirajovem.R
 import com.ifprcrpgtcc.feirajovem.baseclasses.Item
+import com.ifprcrpgtcc.feirajovem.ui.denuncias.UsuarioDenunciaActivity
 
 class HomeFragment : Fragment() {
 
@@ -28,8 +29,6 @@ class HomeFragment : Fragment() {
     private lateinit var editTextSearch: EditText
     private val listaItens = mutableListOf<Item>()
     private val listaFiltrada = mutableListOf<Item>()
-
-    // Cache para escolas dos usuários
     private val mapaEscolasUsuarios = mutableMapOf<String, String>()
 
     override fun onCreateView(
@@ -49,56 +48,59 @@ class HomeFragment : Fragment() {
         feedAdapter = FeedAdapter(
             listaFiltrada,
             onLerMaisClick = { item ->
-                Toast.makeText(requireContext(), "Ler mais de ${item.titulo}", Toast.LENGTH_SHORT).show()
+                context?.let { Toast.makeText(it, "Ler mais de ${item.titulo}", Toast.LENGTH_SHORT).show() }
             },
             onAvaliarClick = { itemId, userId ->
                 mostrarDialogAvaliacao(itemId, userId)
             },
             onDeletarClick = { itemId, userId ->
                 confirmarExclusao(itemId, userId)
+            },
+            onDenunciarClick = { item ->
+                // Abre pop-up de denúncia (usar context? para segurança)
+                context?.let { UsuarioDenunciaActivity.showDenunciaDialog(it) }
             }
         )
 
         recyclerView.adapter = feedAdapter
-
         configurarBarraDePesquisa()
 
         val currentUserId = auth.currentUser?.uid
         if (currentUserId.isNullOrEmpty()) {
-            Toast.makeText(requireContext(), "Usuário não autenticado", Toast.LENGTH_SHORT).show()
+            context?.let { Toast.makeText(it, "Usuário não autenticado", Toast.LENGTH_SHORT).show() }
             return view
         }
 
-        // Primeiro pega a escola do usuário logado
         val userRef = FirebaseDatabase.getInstance().getReference("usuarios").child(currentUserId)
 
         userRef.get().addOnSuccessListener { snapshot ->
-            val escolaUsuarioLogado = snapshot.child("escola").getValue(String::class.java)
+            // Se fragment já não estiver anexado, não tenta continuar
+            if (!isAdded) return@addOnSuccessListener
 
+            val escolaUsuarioLogado = snapshot.child("escola").getValue(String::class.java)
             if (!escolaUsuarioLogado.isNullOrEmpty()) {
-                // Depois carrega o mapa de todas as escolas dos usuários
+                // carregar mapa e depois itens, mas só se fragment ainda estiver anexado
                 carregarMapaEscolas {
-                    // Só carrega os itens depois que o mapa estiver pronto
+                    if (!isAdded) return@carregarMapaEscolas
                     carregarItensMarketplace(escolaUsuarioLogado)
                 }
             } else {
-                Toast.makeText(requireContext(), "Não foi possível identificar sua escola", Toast.LENGTH_SHORT).show()
+                context?.let { Toast.makeText(it, "Não foi possível identificar sua escola", Toast.LENGTH_SHORT).show() }
             }
         }.addOnFailureListener {
-            Toast.makeText(requireContext(), "Erro ao carregar informações do usuário", Toast.LENGTH_SHORT).show()
+            if (!isAdded) return@addOnFailureListener
+            context?.let { Toast.makeText(it, "Erro ao carregar informações do usuário", Toast.LENGTH_SHORT).show() }
         }
 
         return view
     }
 
-    /**
-     * Carrega todas as escolas dos usuários para um mapa em memória
-     */
     private fun carregarMapaEscolas(onComplete: () -> Unit) {
         val usuariosRef = FirebaseDatabase.getInstance().getReference("usuarios")
-
         usuariosRef.addListenerForSingleValueEvent(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
+                // fragment pode ter sido removido entre a chamada e o retorno
+                if (!isAdded) return
                 mapaEscolasUsuarios.clear()
                 for (userSnapshot in snapshot.children) {
                     val userId = userSnapshot.key ?: continue
@@ -109,14 +111,12 @@ class HomeFragment : Fragment() {
             }
 
             override fun onCancelled(error: DatabaseError) {
-                Toast.makeText(requireContext(), "Erro ao carregar escolas dos usuários", Toast.LENGTH_SHORT).show()
+                if (!isAdded) return
+                context?.let { Toast.makeText(it, "Erro ao carregar escolas dos usuários", Toast.LENGTH_SHORT).show() }
             }
         })
     }
 
-    /**
-     * Configura a barra de pesquisa para filtrar os produtos em tempo real
-     */
     private fun configurarBarraDePesquisa() {
         editTextSearch.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -129,9 +129,6 @@ class HomeFragment : Fragment() {
         })
     }
 
-    /**
-     * Filtra os itens pelo texto digitado
-     */
     private fun filtrarItens(query: String) {
         listaFiltrada.clear()
         if (query.isEmpty()) {
@@ -144,26 +141,20 @@ class HomeFragment : Fragment() {
                 }
             )
         }
-
-        // Ordena após filtrar → maior avaliação primeiro
         listaFiltrada.sortByDescending { it.avaliacao }
-
-        feedAdapter.notifyDataSetChanged()
+        if (isAdded) feedAdapter.notifyDataSetChanged()
     }
 
-    /**
-     * Carrega os itens do Firebase filtrando pela escola do usuário logado
-     */
     private fun carregarItensMarketplace(escolaUsuarioLogado: String) {
         databaseRef.addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                listaItens.clear()
+                // evita operar se fragment não estiver anexado
+                if (!isAdded) return
 
+                listaItens.clear()
                 for (userSnapshot in snapshot.children) {
                     val userId = userSnapshot.key ?: continue
                     val escolaDonoDoItem = mapaEscolasUsuarios[userId] ?: ""
-
-                    // Só processa se a escola do dono do item for igual à do usuário logado
                     if (escolaDonoDoItem != escolaUsuarioLogado) continue
 
                     for (itemSnapshot in userSnapshot.children) {
@@ -173,10 +164,7 @@ class HomeFragment : Fragment() {
                             if (it.dataExpiracao == 0L || it.dataExpiracao > agora) {
                                 it.itemId = itemSnapshot.key
                                 it.userId = userId
-
-                                val media = itemSnapshot.child("mediaAvaliacao").getValue(Float::class.java) ?: 0f
-                                it.avaliacao = media
-
+                                it.avaliacao = itemSnapshot.child("mediaAvaliacao").getValue(Float::class.java) ?: 0f
                                 listaItens.add(it)
                             } else {
                                 itemSnapshot.ref.removeValue()
@@ -185,69 +173,73 @@ class HomeFragment : Fragment() {
                         }
                     }
                 }
-
-                // Ordena lista principal antes de filtrar
                 listaItens.sortByDescending { it.avaliacao }
-
-                // Atualiza a lista filtrada
-                filtrarItens(editTextSearch.text.toString())
+                if (isAdded) filtrarItens(editTextSearch.text.toString())
             }
 
             override fun onCancelled(error: DatabaseError) {
-                Toast.makeText(requireContext(), "Erro ao carregar feed", Toast.LENGTH_SHORT).show()
+                if (!isAdded) return
+                context?.let { Toast.makeText(it, "Erro ao carregar feed", Toast.LENGTH_SHORT).show() }
             }
         })
     }
 
     private fun confirmarExclusao(itemId: String, userId: String) {
+        if (!isAdded) return
         val currentUserId = auth.uid
         if (currentUserId != userId) {
-            Toast.makeText(requireContext(), "Você só pode deletar seus próprios itens!", Toast.LENGTH_SHORT).show()
+            context?.let { Toast.makeText(it, "Você só pode deletar seus próprios itens!", Toast.LENGTH_SHORT).show() }
             return
         }
 
-        AlertDialog.Builder(requireContext())
-            .setTitle("Excluir Produto")
-            .setMessage("Tem certeza que deseja excluir este produto?")
-            .setPositiveButton("Sim") { _, _ ->
-                databaseRef.child(userId).child(itemId).removeValue()
-                    .addOnSuccessListener {
-                        Toast.makeText(requireContext(), "Item deletado com sucesso!", Toast.LENGTH_SHORT).show()
-                    }
-                    .addOnFailureListener {
-                        Toast.makeText(requireContext(), "Erro ao deletar item", Toast.LENGTH_SHORT).show()
-                    }
-            }
-            .setNegativeButton("Cancelar", null)
-            .show()
+        context?.let { ctx ->
+            AlertDialog.Builder(ctx)
+                .setTitle("Excluir Produto")
+                .setMessage("Tem certeza que deseja excluir este produto?")
+                .setPositiveButton("Sim") { _, _ ->
+                    databaseRef.child(userId).child(itemId).removeValue()
+                        .addOnSuccessListener {
+                            if (!isAdded) return@addOnSuccessListener
+                            Toast.makeText(ctx, "Item deletado com sucesso!", Toast.LENGTH_SHORT).show()
+                        }
+                        .addOnFailureListener {
+                            if (!isAdded) return@addOnFailureListener
+                            Toast.makeText(ctx, "Erro ao deletar item", Toast.LENGTH_SHORT).show()
+                        }
+                }
+                .setNegativeButton("Cancelar", null)
+                .show()
+        }
     }
 
     private fun mostrarDialogAvaliacao(itemId: String, userId: String) {
+        if (!isAdded) return
         val currentUserId = auth.uid ?: return
-
-        val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_avaliacao, null)
+        val ctx = context ?: return
+        val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_avaliacao, null)
         val ratingBar = dialogView.findViewById<RatingBar>(R.id.ratingBar)
 
-        AlertDialog.Builder(requireContext())
+        AlertDialog.Builder(ctx)
             .setTitle("Avaliar Produto")
             .setView(dialogView)
             .setPositiveButton("Confirmar") { dialog, _ ->
+                if (!isAdded) return@setPositiveButton
                 val nota = ratingBar.rating
-
                 if (nota < 1f) {
-                    Toast.makeText(requireContext(), "Escolha pelo menos 1 estrela!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, "Escolha pelo menos 1 estrela!", Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
 
                 val avaliacaoRef = databaseRef.child(userId).child(itemId).child("avaliacoes")
-
                 avaliacaoRef.child(currentUserId).setValue(nota)
                     .addOnSuccessListener {
-                        Toast.makeText(requireContext(), "Avaliação registrada!", Toast.LENGTH_SHORT).show()
+                        if (!isAdded) return@addOnSuccessListener
+                        Toast.makeText(ctx, "Avaliação registrada!", Toast.LENGTH_SHORT).show()
                         calcularMedia(itemId, userId)
                     }
                     .addOnFailureListener {
-                        Toast.makeText(requireContext(), "Erro ao registrar avaliação!", Toast.LENGTH_SHORT).show()
+                        if (!isAdded) return@addOnFailureListener
+                        Toast.makeText(ctx, "Erro ao registrar avaliação!", Toast.LENGTH_SHORT).show()
                     }
                 dialog.dismiss()
             }
@@ -256,22 +248,22 @@ class HomeFragment : Fragment() {
     }
 
     private fun calcularMedia(itemId: String, userId: String) {
+        if (!isAdded) return
         val avaliacaoRef = databaseRef.child(userId).child(itemId).child("avaliacoes")
-
         avaliacaoRef.get().addOnSuccessListener { snapshot ->
+            if (!isAdded) return@addOnSuccessListener
             var soma = 0f
             var total = 0
-
             for (child in snapshot.children) {
                 val valor = child.getValue(Float::class.java) ?: 0f
                 soma += valor
                 total++
             }
-
             val media = if (total > 0) soma / total else 0f
             databaseRef.child(userId).child(itemId).child("mediaAvaliacao").setValue(media)
         }.addOnFailureListener {
-            Toast.makeText(requireContext(), "Erro ao calcular média!", Toast.LENGTH_SHORT).show()
+            if (!isAdded) return@addOnFailureListener
+            context?.let { Toast.makeText(it, "Erro ao calcular média!", Toast.LENGTH_SHORT).show() }
         }
     }
 }

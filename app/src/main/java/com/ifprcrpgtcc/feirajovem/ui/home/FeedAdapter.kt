@@ -24,7 +24,8 @@ class FeedAdapter(
     private val listaItens: MutableList<Item>,
     private val onLerMaisClick: (Item) -> Unit,
     private val onAvaliarClick: (String, String) -> Unit,
-    private val onDeletarClick: (String, String) -> Unit
+    private val onDeletarClick: (String, String) -> Unit,
+    private val onDenunciarClick: (Item) -> Unit // callback do botão denunciar
 ) : RecyclerView.Adapter<FeedAdapter.FeedViewHolder>() {
 
     private val itensExpandidos = mutableSetOf<String>()
@@ -40,6 +41,7 @@ class FeedAdapter(
         val lerMais: TextView = itemView.findViewById(R.id.textLerMais)
         val btnAvaliar: Button = itemView.findViewById(R.id.btnAvaliar)
         val btnDeletar: Button = itemView.findViewById(R.id.btnDeletar)
+        val btnDenunciar: Button = itemView.findViewById(R.id.btnDenunciar) // botão denunciar
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): FeedViewHolder {
@@ -51,7 +53,7 @@ class FeedAdapter(
         val item = listaItens[position]
         val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
 
-        // Reset ImageViews para evitar reciclagem
+        // Reset ImageViews
         holder.imagem.setImageDrawable(null)
         holder.imagemUsuario.setImageResource(R.drawable.ic_placeholder_user)
 
@@ -60,7 +62,7 @@ class FeedAdapter(
         holder.preco.text = "R$ ${item.preco ?: "0,00"}"
         holder.descricao.text = item.descricao ?: ""
 
-        // ===== TEMPO RESTANTE =====
+        // TEMPO RESTANTE
         if (item.dataExpiracao > 0) {
             val restanteMillis = item.dataExpiracao - System.currentTimeMillis()
             holder.tempoRestante.text = when {
@@ -73,7 +75,7 @@ class FeedAdapter(
             }
         } else holder.tempoRestante.text = ""
 
-        // ===== LER MAIS =====
+        // LER MAIS
         val estaExpandido = item.itemId?.let { itensExpandidos.contains(it) } ?: false
         if (estaExpandido) {
             holder.descricao.maxLines = Integer.MAX_VALUE
@@ -93,13 +95,13 @@ class FeedAdapter(
             onLerMaisClick(item)
         }
 
-        // ===== Botão Avaliar =====
+        // BOTÃO AVALIAR
         holder.btnAvaliar.setOnClickListener {
             if (!item.itemId.isNullOrEmpty() && !item.userId.isNullOrEmpty())
                 onAvaliarClick(item.itemId!!, item.userId!!)
         }
 
-        // ===== Botão Deletar → só para dono =====
+        // BOTÃO DELETAR (só para dono)
         if (item.userId == currentUserId) {
             holder.btnDeletar.visibility = View.VISIBLE
             holder.btnDeletar.setOnClickListener {
@@ -112,11 +114,14 @@ class FeedAdapter(
                         .show()
                 }
             }
-        } else {
-            holder.btnDeletar.visibility = View.GONE
+        } else holder.btnDeletar.visibility = View.GONE
+
+        // BOTÃO DENUNCIAR
+        holder.btnDenunciar.setOnClickListener {
+            onDenunciarClick(item)
         }
 
-        // ===== Carregar imagem do produto =====
+        // CARREGAR IMAGEM DO PRODUTO
         item.imagemBase64.let {
             try {
                 val bytes = Base64.decode(it, Base64.DEFAULT)
@@ -124,41 +129,22 @@ class FeedAdapter(
             } catch (_: Exception) {}
         }
 
-        // ===== Miniatura do usuário =====
-        holder.imagemUsuario.setImageResource(R.drawable.ic_placeholder_user) // placeholder inicial
+        // MINIATURA USUÁRIO
+        holder.imagemUsuario.setImageResource(R.drawable.ic_placeholder_user)
         item.userId?.let { userId ->
-
             val dbUser = FirebaseDatabase.getInstance().getReference("usuarios")
             dbUser.child(userId).get().addOnSuccessListener { snapshot ->
                 val usuario = snapshot.getValue(Usuario::class.java)
-                usuario?.fotoBase64.let {
+                if (!usuario?.fotoBase64.isNullOrEmpty()) {
                     try {
-                        val bytes = Base64.decode(it, Base64.DEFAULT)
-                        holder.imagem.setImageBitmap(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
+                        val bytes = Base64.decode(usuario?.fotoBase64, Base64.DEFAULT)
+                        holder.imagemUsuario.setImageBitmap(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
                     } catch (_: Exception) {}
                 }
-                if (usuario == null) {
-                    Log.d("FeedAdapter", "Usuário $userId não encontrado")
-                    return@addOnSuccessListener
-                }
-
-                if (usuario.fotoBase64.isNullOrEmpty()) {
-                    Log.d("FeedAdapter", "Usuário ${usuario.nome} não tem foto")
-                } else {
-                    try {
-                        val bytes = Base64.decode(usuario.fotoBase64, Base64.DEFAULT)
-                        holder.imagemUsuario.setImageBitmap(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
-                    } catch (e: Exception) {
-                        Log.e("FeedAdapter", "Erro ao decodificar foto de ${usuario.nome}", e)
-                    }
-                }
-            }.addOnFailureListener {
-                Log.e("FeedAdapter", "Falha ao buscar usuário $userId", it)
             }
         }
 
-
-        // ===== Clique na imagem abre diálogo =====
+        // CLIQUE NA IMAGEM
         holder.imagem.setOnClickListener {
             val dialog = ItemDetailsDialog(holder.itemView.context, item)
             dialog.show()

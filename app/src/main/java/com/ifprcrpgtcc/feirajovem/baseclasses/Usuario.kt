@@ -5,7 +5,7 @@ data class Usuario(
     var nome: String? = null,
     var email: String? = null,
     var escola: String? = null,
-    var tipo: String? = null,
+    var tipo: String? = "user comum",
     var endereco: String? = null,
     var fotoBase64: String? = null
 )

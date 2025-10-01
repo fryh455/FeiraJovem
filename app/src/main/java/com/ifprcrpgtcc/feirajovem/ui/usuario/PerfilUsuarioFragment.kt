@@ -18,8 +18,10 @@ import com.ifprcrpgtcc.feirajovem.R
 import com.ifprcrpgtcc.feirajovem.baseclasses.Item
 import com.ifprcrpgtcc.feirajovem.baseclasses.Usuario
 import com.ifprcrpgtcc.feirajovem.databinding.FragmentPerfilUsuarioBinding
+import com.ifprcrpgtcc.feirajovem.ui.denuncias.UsuarioDenunciaActivity
 import com.ifprcrpgtcc.feirajovem.ui.home.FeedAdapter
 import com.ifprcrpgtcc.feirajovem.ui.login.LoginActivity
+
 
 class PerfilUsuarioFragment : Fragment() {
 
@@ -71,6 +73,10 @@ class PerfilUsuarioFragment : Fragment() {
             },
             onDeletarClick = { itemId, userId ->
                 confirmarExclusao(itemId, userId)
+            },
+            onDenunciarClick = { item ->
+                // Abre pop-up de denúncia
+                val denunciaDialog = UsuarioDenunciaActivity.showDenunciaDialog(requireContext())
             }
         )
         recyclerViewMeusProdutos.adapter = meusProdutosAdapter

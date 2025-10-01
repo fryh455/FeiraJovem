@@ -105,7 +105,7 @@
             android:textSize="12sp"
             android:layout_marginTop="4dp" />
 
-        <!-- Linha de botões -->
+        <!-- Linha de botões Avaliar e Deletar -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -134,6 +134,24 @@
                 android:text="Deletar"
                 android:textSize="12sp"
                 android:backgroundTint="#F44336"
+                android:textColor="@android:color/white"
+                android:paddingHorizontal="12dp"/>
+        </LinearLayout>
+
+        <!-- Botão Denunciar em linha separada -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:layout_marginTop="6dp">
+
+            <Button
+                android:id="@+id/btnDenunciar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Denunciar"
+                android:textSize="12sp"
+                android:backgroundTint="#FF9800"
                 android:textColor="@android:color/white"
                 android:paddingHorizontal="12dp"/>
         </LinearLayout>
