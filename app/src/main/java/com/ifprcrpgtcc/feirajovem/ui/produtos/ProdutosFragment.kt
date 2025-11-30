@@ -1,7 +1,6 @@
 package com.ifprcrpgtcc.feirajovem.ui.produtos
 
 import android.app.AlertDialog
-import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Base64
@@ -17,6 +16,7 @@ import com.bumptech.glide.Glide
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.firestore.FirebaseFirestore
 import com.ifprcrpgtcc.feirajovem.R
 import com.ifprcrpgtcc.feirajovem.baseclasses.Item
 import com.ifprcrpgtcc.feirajovem.databinding.FragmentCadastroProdutosBinding
@@ -28,15 +28,17 @@ class ProdutosFragment : Fragment() {
     private val binding get() = _binding!!
 
     private var imageUri: Uri? = null
-    private lateinit var databaseReference: DatabaseReference
+    private lateinit var realtimeRef: DatabaseReference
     private lateinit var auth: FirebaseAuth
+    private val firestore = FirebaseFirestore.getInstance()
+
     private var progressDialog: AlertDialog? = null
 
     companion object {
         private const val TAG = "ProdutosFragment"
     }
 
-    // Novo launcher moderno
+    // Image Picker
     private val pickImageLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -51,41 +53,38 @@ class ProdutosFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentCadastroProdutosBinding.inflate(inflater, container, false)
-        val view = binding.root
 
         auth = FirebaseAuth.getInstance()
-        databaseReference = FirebaseDatabase.getInstance().getReference("itens")
+        realtimeRef = FirebaseDatabase.getInstance().getReference("itens")
 
-        // Spinner
+        setupDuracaoSpinner()
+
+        binding.buttonSelectImage.setOnClickListener { pickImageLauncher.launch("image/*") }
+        binding.salvarItemButton.setOnClickListener { salvarItem() }
+
+        return binding.root
+    }
+
+    private fun setupDuracaoSpinner() {
         val options = listOf("24 horas", "3 dias", "7 dias (máx)")
         val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, options)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         binding.spinnerDuracao.adapter = adapter
         binding.spinnerDuracao.setSelection(2)
-
-        // Botões
-        binding.buttonSelectImage.setOnClickListener { openFileChooser() }
-        binding.salvarItemButton.setOnClickListener { salvarItem() }
-
-        return view
-    }
-
-    private fun openFileChooser() {
-        pickImageLauncher.launch("image/*")
     }
 
     private fun mostrarProgress() {
-        val builder = AlertDialog.Builder(requireContext())
-        builder.setCancelable(false)
         val view = layoutInflater.inflate(R.layout.dialog_progress, null)
-        builder.setView(view)
-        progressDialog = builder.create()
+        progressDialog = AlertDialog.Builder(requireContext())
+            .setView(view)
+            .setCancelable(false)
+            .create()
+
         progressDialog?.show()
     }
 
     private fun esconderProgress() {
         progressDialog?.dismiss()
-        progressDialog = null
     }
 
     private fun salvarItem() {
@@ -94,40 +93,31 @@ class ProdutosFragment : Fragment() {
         val preco = binding.editPrecoProduto.text.toString().trim()
         val endereco = binding.enderecoItemEditText.text.toString().trim()
 
-        if (titulo.isEmpty() || descricao.isEmpty() || preco.isEmpty() || endereco.isEmpty() || imageUri == null) {
+        if (titulo.isEmpty() || descricao.isEmpty() || preco.isEmpty() ||
+            endereco.isEmpty() || imageUri == null
+        ) {
             Toast.makeText(context, "Preencha todos os campos e selecione uma imagem.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val userId = auth.uid ?: run {
+            Toast.makeText(context, "Usuário não autenticado.", Toast.LENGTH_SHORT).show()
             return
         }
 
         mostrarProgress()
 
         val agora = System.currentTimeMillis()
-        val duracaoMillis = when (binding.spinnerDuracao.selectedItemPosition) {
-            0 -> 24L * 60 * 60 * 1000
-            1 -> 3L * 24 * 60 * 60 * 1000
-            else -> 7L * 24 * 60 * 60 * 1000
-        }
-        val expiracao = agora + duracaoMillis
+        val expiracao = calcularExpiracao(binding.spinnerDuracao.selectedItemPosition)
 
-        val userId = auth.uid ?: run {
-            Toast.makeText(context, "Usuário não autenticado.", Toast.LENGTH_SHORT).show()
-            esconderProgress()
-            return
-        }
-
-        val newKey = databaseReference.push().key ?: run {
+        val newKey = realtimeRef.push().key ?: run {
             Toast.makeText(context, "Erro ao gerar ID do item.", Toast.LENGTH_SHORT).show()
             esconderProgress()
             return
         }
 
         try {
-            val inputStream: InputStream? = context?.contentResolver?.openInputStream(imageUri!!)
-            val bytes = inputStream?.readBytes()
-            inputStream?.close()
-
-            val base64Image = if (bytes != null) Base64.encodeToString(bytes, Base64.DEFAULT) else ""
-
+            val base64Image = converterImagemBase64(imageUri!!)
             val item = Item(
                 itemId = newKey,
                 userId = userId,
@@ -141,11 +131,10 @@ class ProdutosFragment : Fragment() {
                 avaliacao = 0f
             )
 
-            databaseReference.child(userId).child(newKey).setValue(item)
+            // Salva no Realtime DB
+            realtimeRef.child(userId).child(newKey).setValue(item)
                 .addOnSuccessListener {
-                    Toast.makeText(context, "Item cadastrado com sucesso!", Toast.LENGTH_SHORT).show()
-                    limparCampos()
-                    esconderProgress()
+                    replicarParaFirestore(newKey, titulo, userId, agora)
                 }
                 .addOnFailureListener {
                     Toast.makeText(context, "Falha ao cadastrar o item.", Toast.LENGTH_SHORT).show()
@@ -156,6 +145,57 @@ class ProdutosFragment : Fragment() {
             Log.e(TAG, "Erro ao processar imagem", e)
             Toast.makeText(context, "Erro ao processar a imagem.", Toast.LENGTH_SHORT).show()
             esconderProgress()
+        }
+    }
+
+    private fun converterImagemBase64(uri: Uri): String {
+        val inputStream: InputStream? =
+            context?.contentResolver?.openInputStream(uri)
+        val bytes = inputStream?.readBytes()
+        inputStream?.close()
+        return if (bytes != null) Base64.encodeToString(bytes, Base64.DEFAULT) else ""
+    }
+
+    private fun replicarParaFirestore(itemId: String, titulo: String, userId: String, dataCriacao: Long) {
+        // Puxa escola do usuário direto do Firestore (onde ele já está salvo desde o cadastro)
+        firestore.collection("usuarios").document(userId).get()
+            .addOnSuccessListener { doc ->
+                val escola = doc.getString("escola") ?: "desconhecida"
+
+                val fsItem = hashMapOf(
+                    "titulo" to titulo,
+                    "userId" to userId,
+                    "dataCriacao" to dataCriacao,
+                    "escolaDoUsuario" to escola // otimiza trigger
+                )
+
+                firestore.collection("items")
+                    .document(itemId)
+                    .set(fsItem)
+                    .addOnSuccessListener {
+                        Toast.makeText(context, "Item cadastrado com sucesso!", Toast.LENGTH_SHORT).show()
+                        limparCampos()
+                        esconderProgress()
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e(TAG, "Falha ao gravar no Firestore: ${e.message}")
+                        Toast.makeText(context, "Item salvo, mas falhou ao sincronizar com Firestore.", Toast.LENGTH_SHORT).show()
+                        limparCampos()
+                        esconderProgress()
+                    }
+            }
+            .addOnFailureListener {
+                Log.e(TAG, "Falha ao buscar escola do usuário no Firestore.")
+                esconderProgress()
+            }
+    }
+
+    private fun calcularExpiracao(option: Int): Long {
+        val agora = System.currentTimeMillis()
+        return when (option) {
+            0 -> agora + 24L * 60 * 60 * 1000
+            1 -> agora + 3L * 24 * 60 * 60 * 1000
+            else -> agora + 7L * 24 * 60 * 60 * 1000
         }
     }
 

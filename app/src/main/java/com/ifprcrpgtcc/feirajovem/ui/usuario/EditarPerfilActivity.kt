@@ -15,6 +15,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.firestore.FirebaseFirestore
 import com.ifprcrpgtcc.feirajovem.R
 import com.ifprcrpgtcc.feirajovem.baseclasses.Usuario
 import java.io.ByteArrayOutputStream
@@ -31,7 +32,8 @@ class EditarPerfilActivity : AppCompatActivity() {
     private lateinit var buttonCancelar: Button
 
     private lateinit var auth: FirebaseAuth
-    private val database = FirebaseDatabase.getInstance().getReference("users")
+    private val database = FirebaseDatabase.getInstance().getReference("usuarios")
+    private val firestore = FirebaseFirestore.getInstance()
 
     private var imageUri: Uri? = null
     private var imageBase64: String? = null // Guardar a imagem como Base64
@@ -82,7 +84,7 @@ class EditarPerfilActivity : AppCompatActivity() {
         editNome.setText(user.displayName ?: "")
         editEmail.setText(user.email ?: "")
 
-        // Carregar imagem salva no Firebase (Base64)
+        // Carregar imagem salva no Firebase (Base64) do Realtime Database
         database.child(user.uid).get().addOnSuccessListener { snapshot ->
             if (snapshot.exists()) {
                 val usuario = snapshot.getValue(Usuario::class.java)
@@ -147,7 +149,7 @@ class EditarPerfilActivity : AppCompatActivity() {
     }
 
     /**
-     * Atualiza os dados do usuário no Realtime Database
+     * Atualiza os dados do usuário no Realtime Database e no Firestore (minimizado)
      */
     private fun atualizarUsuarioNoDatabase(uid: String, nome: String, email: String?) {
         val usuarioRef = database.child(uid)
@@ -168,8 +170,26 @@ class EditarPerfilActivity : AppCompatActivity() {
 
             usuarioRef.setValue(usuarioAtualizado)
                 .addOnSuccessListener {
-                    Toast.makeText(this, "Perfil atualizado com sucesso!", Toast.LENGTH_SHORT).show()
-                    finish()
+                    // Atualiza também no Firestore a versão mínima (nome, email, escola, fotoBase64)
+                    val fsMap = hashMapOf<String, Any?>(
+                        "nome" to nome,
+                        "email" to email,
+                        "fotoBase64" to fotoFinal,
+                        // mantenha "escola" no Firestore se já existir, caso contrário não sobrescreve
+                    )
+
+                    firestore.collection("usuarios")
+                        .document(uid)
+                        .set(fsMap, com.google.firebase.firestore.SetOptions.merge())
+                        .addOnSuccessListener {
+                            Toast.makeText(this, "Perfil atualizado com sucesso!", Toast.LENGTH_SHORT).show()
+                            finish()
+                        }
+                        .addOnFailureListener {
+                            // Mesmo que Firestore falhe, já atualizamos o Realtime DB
+                            Toast.makeText(this, "Perfil atualizado (Realtime DB). Falha ao atualizar Firestore.", Toast.LENGTH_SHORT).show()
+                            finish()
+                        }
                 }
                 .addOnFailureListener {
                     Toast.makeText(this, "Erro ao salvar alterações no banco", Toast.LENGTH_SHORT).show()

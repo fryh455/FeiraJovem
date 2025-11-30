@@ -1,5 +1,6 @@
 package com.ifprcrpgtcc.feirajovem.ui.admin
 
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -15,6 +16,8 @@ class DenunciasAdapter(
     private val onIgnorarClick: (Denuncias) -> Unit
 ) : RecyclerView.Adapter<DenunciasAdapter.DenunciaViewHolder>() {
 
+    companion object { private const val TAG = "DenunciasAdapter" }
+
     inner class DenunciaViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val motivoText: TextView = itemView.findViewById(R.id.textMotivoDenuncia)
         private val statusText: TextView = itemView.findViewById(R.id.textStatusDenuncia)
@@ -24,9 +27,14 @@ class DenunciasAdapter(
         fun bind(denuncia: Denuncias) {
             motivoText.text = denuncia.motivo ?: "Sem motivo"
             statusText.text = "Status: ${denuncia.status}"
-
-            resolverButton.setOnClickListener { onResolverClick.invoke(denuncia) }
-            ignorarButton.setOnClickListener { onIgnorarClick.invoke(denuncia) }
+            resolverButton.setOnClickListener {
+                Log.d(TAG, "Resolver clicado para denúncia ${denuncia.denunciaId}")
+                onResolverClick(denuncia)
+            }
+            ignorarButton.setOnClickListener {
+                Log.d(TAG, "Ignorar clicado para denúncia ${denuncia.denunciaId}")
+                onIgnorarClick(denuncia)
+            }
         }
     }
 

@@ -21,12 +21,10 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.messaging.FirebaseMessaging
-import com.ifprcrpgtcc.feirajovem.databinding.ActivityMainBinding
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import com.ifprcrpgtcc.feirajovem.baseclasses.Usuario
-import com.ifprcrpgtcc.feirajovem.ui.admin.AdminPanelFragment
+import com.ifprcrpgtcc.feirajovem.ui.admin.AdminPanelActivity
 import com.ifprcrpgtcc.feirajovem.ui.login.LoginActivity
+import com.ifprcrpgtcc.feirajovem.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
 
@@ -57,45 +55,42 @@ class MainActivity : AppCompatActivity() {
 
         val ref = FirebaseDatabase.getInstance().getReference("usuarios").child(uid)
         ref.get().addOnSuccessListener { snapshot ->
-            if (snapshot.exists()) {
-                val usuario = snapshot.getValue(Usuario::class.java)
-                val navView: BottomNavigationView = binding.navView
+            if (!snapshot.exists()) {
+                goToLogin("Usuário não encontrado. Faça login novamente.")
+                return@addOnSuccessListener
+            }
 
-                if (usuario?.tipo == "admin") {
-                    // Ativa item admin no menu (garante que o ID exista no menu XML)
-                    navView.menu.findItem(R.id.navigation_admin)?.isVisible = true
+            val usuario = snapshot.getValue(Usuario::class.java)
+            Log.d("MainActivity", "Usuário logado: $usuario")
 
-                    // Configura listener da BottomNavigationView
-                    navView.setOnItemSelectedListener { item ->
-                        when (item.itemId) {
-                            R.id.navigation_admin -> {
-                                // Mostra o fragment admin
-                                supportFragmentManager.beginTransaction()
-                                    .replace(R.id.admin_feed_container, AdminPanelFragment())
-                                    .commit()
-                                binding.adminFeedContainer.visibility = View.VISIBLE
+            if (usuario?.tipo == "admin") {
+                val escolaAdmin = usuario.escola
+                Log.d("MainActivity", "Escola do admin: $escolaAdmin")
 
-                                // Oculta fragment normal do feed
-                                supportFragmentManager.findFragmentById(R.id.nav_host_fragment_activity_main)?.view?.visibility = View.GONE
-                                true
-                            }
-                            else -> {
-                                // Exibe feed normal
-                                val navController = findNavController(R.id.nav_host_fragment_activity_main)
-                                navController.navigate(item.itemId)
-                                binding.adminFeedContainer.visibility = View.GONE
-                                supportFragmentManager.findFragmentById(R.id.nav_host_fragment_activity_main)?.view?.visibility = View.VISIBLE
-                                true
-                            }
+                // Ativa item admin no menu
+                binding.navView.menu.findItem(R.id.navigation_admin)?.isVisible = true
+
+                // Listener BottomNavigation
+                binding.navView.setOnItemSelectedListener { item ->
+                    when (item.itemId) {
+                        R.id.navigation_admin -> {
+                            Log.d("MainActivity", "Abrindo painel admin")
+                            val intent = Intent(this, AdminPanelActivity::class.java)
+                            // Passa escolaAdmin para a activity
+                            intent.putExtra("escolaAdmin", escolaAdmin)
+                            startActivity(intent)
+                            true
+                        }
+                        else -> {
+                            val navController = findNavController(R.id.nav_host_fragment_activity_main)
+                            navController.navigate(item.itemId)
+                            true
                         }
                     }
-
-                } else {
-                    // Usuário comum → nav padrão
-                    configurarNavegacaoPadrao()
                 }
             } else {
-                goToLogin("Usuário não encontrado. Faça login novamente.")
+                // Usuário comum → navegação normal
+                configurarNavegacaoPadrao()
             }
         }.addOnFailureListener { exception ->
             Log.e("MainActivity", "Erro ao verificar tipo de usuário", exception)
@@ -115,7 +110,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun configurarNavegacaoPadrao() {
         val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment_activity_main)
-        if (navHostFragment != null && navHostFragment.isAdded && navHostFragment.view != null) {
+        if (navHostFragment?.view != null) {
             val navController = findNavController(R.id.nav_host_fragment_activity_main)
             val navView: BottomNavigationView = binding.navView
             val appBarConfiguration = AppBarConfiguration(
@@ -176,14 +171,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
+            val channel = android.app.NotificationChannel(
                 CHANNEL_ID,
                 "Canal Padrão",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Canal para notificações do app"
-            }
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                android.app.NotificationManager.IMPORTANCE_HIGH
+            ).apply { description = "Canal para notificações do app" }
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
             manager.createNotificationChannel(channel)
         }
     }
