@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
@@ -20,11 +19,13 @@ import androidx.navigation.ui.setupWithNavController
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.messaging.FirebaseMessaging
 import com.ifprcrpgtcc.feirajovem.baseclasses.Usuario
+import com.ifprcrpgtcc.feirajovem.databinding.ActivityMainBinding
 import com.ifprcrpgtcc.feirajovem.ui.admin.AdminPanelActivity
 import com.ifprcrpgtcc.feirajovem.ui.login.LoginActivity
-import com.ifprcrpgtcc.feirajovem.databinding.ActivityMainBinding
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
@@ -40,10 +41,11 @@ class MainActivity : AppCompatActivity() {
 
         createNotificationChannel()
         requestNotificationPermission()
-        configurarFCMToken()
         verificarTipoUsuario()
+        configurarFCMToken() // pega token, salva e inscreve no tópico da escola
     }
 
+    // verifica tipo de usuário (admin / comum) e configura menu
     private fun verificarTipoUsuario() {
         val auth = FirebaseAuth.getInstance()
         val uid = auth.currentUser?.uid
@@ -54,54 +56,47 @@ class MainActivity : AppCompatActivity() {
         }
 
         val ref = FirebaseDatabase.getInstance().getReference("usuarios").child(uid)
-        ref.get().addOnSuccessListener { snapshot ->
-            if (!snapshot.exists()) {
-                goToLogin("Usuário não encontrado. Faça login novamente.")
-                return@addOnSuccessListener
-            }
 
-            val usuario = snapshot.getValue(Usuario::class.java)
-            Log.d("MainActivity", "Usuário logado: $usuario")
+        ref.get()
+            .addOnSuccessListener { snapshot ->
+                if (!snapshot.exists()) {
+                    goToLogin("Usuário não encontrado.")
+                    return@addOnSuccessListener
+                }
 
-            if (usuario?.tipo == "admin") {
-                val escolaAdmin = usuario.escola
-                Log.d("MainActivity", "Escola do admin: $escolaAdmin")
+                val usuario = snapshot.getValue(Usuario::class.java)
 
-                // Ativa item admin no menu
-                binding.navView.menu.findItem(R.id.navigation_admin)?.isVisible = true
+                if (usuario?.tipo == "admin") {
+                    val escolaAdmin = usuario.escola
+                    binding.navView.menu.findItem(R.id.navigation_admin)?.isVisible = true
 
-                // Listener BottomNavigation
-                binding.navView.setOnItemSelectedListener { item ->
-                    when (item.itemId) {
-                        R.id.navigation_admin -> {
-                            Log.d("MainActivity", "Abrindo painel admin")
-                            val intent = Intent(this, AdminPanelActivity::class.java)
-                            // Passa escolaAdmin para a activity
-                            intent.putExtra("escolaAdmin", escolaAdmin)
-                            startActivity(intent)
-                            true
-                        }
-                        else -> {
-                            val navController = findNavController(R.id.nav_host_fragment_activity_main)
-                            navController.navigate(item.itemId)
-                            true
+                    binding.navView.setOnItemSelectedListener { item ->
+                        when (item.itemId) {
+                            R.id.navigation_admin -> {
+                                val intent = Intent(this, AdminPanelActivity::class.java)
+                                intent.putExtra("escolaAdmin", escolaAdmin)
+                                startActivity(intent)
+                                true
+                            }
+                            else -> {
+                                val navController = findNavController(R.id.nav_host_fragment_activity_main)
+                                navController.navigate(item.itemId)
+                                true
+                            }
                         }
                     }
+                } else {
+                    configurarNavegacaoPadrao()
                 }
-            } else {
-                // Usuário comum → navegação normal
-                configurarNavegacaoPadrao()
             }
-        }.addOnFailureListener { exception ->
-            Log.e("MainActivity", "Erro ao verificar tipo de usuário", exception)
-            goToLogin("Erro ao verificar usuário. Tente logar novamente.")
-        }
+            .addOnFailureListener {
+                goToLogin("Erro ao verificar usuário.")
+            }
     }
 
     private fun goToLogin(message: String? = null) {
-        try { FirebaseAuth.getInstance().signOut() } catch (t: Throwable) { Log.w("MainActivity", "Erro ao deslogar", t) }
+        try { FirebaseAuth.getInstance().signOut() } catch (_: Throwable) {}
         message?.let { Toast.makeText(this, it, Toast.LENGTH_SHORT).show() }
-
         val intent = Intent(this, LoginActivity::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
@@ -114,30 +109,92 @@ class MainActivity : AppCompatActivity() {
             val navController = findNavController(R.id.nav_host_fragment_activity_main)
             val navView: BottomNavigationView = binding.navView
             val appBarConfiguration = AppBarConfiguration(
-                setOf(
-                    R.id.navigation_home,
-                    R.id.navigation_dashboard,
-                    R.id.navigation_profile
-                )
+                setOf(R.id.navigation_home, R.id.navigation_dashboard, R.id.navigation_profile)
             )
             setupActionBarWithNavController(navController, appBarConfiguration)
             navView.setupWithNavController(navController)
-        } else {
-            Log.d("MainActivity", "NavHostFragment não disponível — pulando configuração de navegação")
         }
     }
 
+    /**
+     * Obtém token FCM, salva em Firestore + Realtime DB e se possível inscreve no tópico da escola.
+     * Executa sempre que o app abre.
+     */
     private fun configurarFCMToken() {
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (!task.isSuccessful) {
-                Log.w("FCM_TOKEN", "Erro ao pegar token", task.exception)
+                Log.e("FCM_TOKEN", "Erro ao pegar token", task.exception)
                 return@addOnCompleteListener
             }
-            val token = task.result
-            Log.d("FCM_TOKEN", "Token gerado: $token")
+
+            val token = task.result ?: run {
+                Log.e("FCM_TOKEN", "Token retornou null")
+                return@addOnCompleteListener
+            }
+
+            val uid = FirebaseAuth.getInstance().currentUser?.uid
+            if (uid == null) {
+                // Usuário não autenticado — guardamos só localmente no log (ou poderia guardar para envio posterior)
+                Log.w("FCM_TOKEN", "Usuário não autenticado — token obtido mas não salvo: $token")
+                return@addOnCompleteListener
+            }
+
+            val firestore = FirebaseFirestore.getInstance()
+            val rtdb = FirebaseDatabase.getInstance().getReference("tokens")
+
+            // salva no Realtime Database (tokens/{uid} = token)
+            rtdb.child(uid).setValue(token)
+                .addOnSuccessListener { Log.d("FCM_TOKEN", "Token salvo no Realtime DB") }
+                .addOnFailureListener { e -> Log.e("FCM_TOKEN", "Falha ao salvar token no Realtime DB: ${e.message}") }
+
+            // salva no Firestore (usuarios/{uid}.token)
+            val userRef = firestore.collection("usuarios").document(uid)
+            userRef.get().addOnSuccessListener { doc ->
+                if (!doc.exists()) {
+                    // cria documento mínimo com token (se usuário não tiver doc no Firestore)
+                    userRef.set(mapOf("token" to token))
+                        .addOnSuccessListener { Log.d("FCM_TOKEN", "Documento criado no Firestore com token") }
+                        .addOnFailureListener { e -> Log.e("FCM_TOKEN", "Falha ao criar doc Firestore: ${e.message}") }
+                } else {
+                    // atualiza token
+                    userRef.update("token", token)
+                        .addOnSuccessListener { Log.d("FCM_TOKEN", "Token atualizado no Firestore") }
+                        .addOnFailureListener { e -> Log.e("FCM_TOKEN", "Falha ao atualizar token no Firestore: ${e.message}") }
+                }
+
+                // tenta obter a escola para se inscrever no tópico
+                val escola = doc.getString("escola")
+                if (!escola.isNullOrBlank()) {
+                    val topic = normalizeTopic(escola)
+                    FirebaseMessaging.getInstance().subscribeToTopic(topic)
+                        .addOnSuccessListener { Log.d("FCM_TOPIC", "Inscrito no tópico: $topic") }
+                        .addOnFailureListener { e -> Log.e("FCM_TOPIC", "Falha ao inscrever no tópico: ${e.message}") }
+                } else {
+                    // fallback: busca no Realtime Database se Firestore não contém escola
+                    FirebaseDatabase.getInstance().getReference("usuarios").child(uid).get()
+                        .addOnSuccessListener { snap ->
+                            val escolaRt = snap.child("escola").getValue(String::class.java)
+                            if (!escolaRt.isNullOrBlank()) {
+                                val topic = normalizeTopic(escolaRt)
+                                FirebaseMessaging.getInstance().subscribeToTopic(topic)
+                                    .addOnSuccessListener { Log.d("FCM_TOPIC", "Inscrito no tópico (RTDB): $topic") }
+                                    .addOnFailureListener { e -> Log.e("FCM_TOPIC", "Falha tópico (RTDB): ${e.message}") }
+                            } else {
+                                Log.d("FCM_TOPIC", "Escola não encontrada para inscrição em tópico")
+                            }
+                        }
+                }
+            }.addOnFailureListener { e ->
+                Log.e("FCM_TOKEN", "Falha ao ler doc usuario no Firestore: ${e.message}")
+            }
         }
     }
 
+    private fun normalizeTopic(escola: String): String {
+        return escola.lowercase(Locale.ROOT).replace("[^a-z0-9]".toRegex(), "_")
+    }
+
+    // permissões e canal
     private fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
@@ -148,23 +205,6 @@ class MainActivity : AppCompatActivity() {
                     arrayOf(Manifest.permission.POST_NOTIFICATIONS),
                     NOTIFICATION_PERMISSION_CODE
                 )
-            } else {
-                Log.d("FCM", "Permissão para notificações já concedida")
-            }
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == NOTIFICATION_PERMISSION_CODE) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Log.d("FCM", "Permissão para notificações concedida")
-            } else {
-                Log.e("FCM", "Permissão para notificações NEGADA")
             }
         }
     }
@@ -176,6 +216,7 @@ class MainActivity : AppCompatActivity() {
                 "Canal Padrão",
                 android.app.NotificationManager.IMPORTANCE_HIGH
             ).apply { description = "Canal para notificações do app" }
+
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
             manager.createNotificationChannel(channel)
         }

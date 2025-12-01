@@ -7,5 +7,6 @@ data class Usuario(
     var escola: String? = null,
     var tipo: String? = "user comum",
     var endereco: String? = null,
-    var fotoBase64: String? = null
+    var fotoBase64: String? = null,
+    var token: String? = null
 )

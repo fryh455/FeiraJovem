@@ -10,12 +10,15 @@ import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.ifprcrpgtcc.feirajovem.MainActivity
 import com.ifprcrpgtcc.feirajovem.R
+import java.util.Locale
 
 class MyFirebaseMessagingService : FirebaseMessagingService() {
 
@@ -25,59 +28,75 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     /**
-     * Chamado sempre que uma notificação push chega,
-     * mesmo com o app fechado.
+     * Recebe mensagem e exibe notificação (funciona também com app fechado quando FCM enviar mensagem 'notification')
      */
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         Log.d(TAG, "Mensagem recebida de: ${remoteMessage.from}")
 
-        val title = remoteMessage.notification?.title ?: "Nova notificação"
-        val body = remoteMessage.notification?.body ?: "Você recebeu uma atualização"
+        val title = remoteMessage.notification?.title ?: remoteMessage.data["title"] ?: "Nova notificação"
+        val body = remoteMessage.notification?.body ?: remoteMessage.data["body"] ?: "Você recebeu uma atualização"
 
         sendNotification(title, body)
     }
 
     /**
-     * Chamado sempre que o Firebase gera ou renova o token do dispositivo.
+     * Novo token — salvar em Firestore + Realtime DB e se possível (usuário logado) inscrever em tópico escola.
      */
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         Log.d(TAG, "Novo token FCM: $token")
-        salvarTokenNoFirestore(token)
-    }
 
-    /**
-     * Salva o token FCM no Firestore em:
-     * usuarios/{uid}/token
-     */
-    private fun salvarTokenNoFirestore(token: String) {
-        val user = FirebaseAuth.getInstance().currentUser
-
-        if (user == null) {
-            Log.w(TAG, "Usuário não autenticado — token não salvo agora.")
+        val uid = FirebaseAuth.getInstance().currentUser?.uid
+        if (uid == null) {
+            Log.w(TAG, "Usuário não autenticado — token novo não salvo agora.")
             return
         }
 
-        val db = FirebaseFirestore.getInstance()
+        val firestore = FirebaseFirestore.getInstance()
+        val rtdb = FirebaseDatabase.getInstance().getReference("tokens")
 
-        val map = hashMapOf(
-            "token" to token
-        )
+        // salva no Realtime
+        rtdb.child(uid).setValue(token)
+            .addOnSuccessListener { Log.d(TAG, "Token salvo no Realtime DB") }
+            .addOnFailureListener { e -> Log.e(TAG, "Falha RTDB token: ${e.message}") }
 
-        db.collection("usuarios")
-            .document(user.uid)
-            .set(map, SetOptions.merge())
-            .addOnSuccessListener {
-                Log.d(TAG, "Token FCM salvo no Firestore.")
+        // salva no Firestore (merge)
+        firestore.collection("usuarios").document(uid)
+            .set(mapOf("token" to token), SetOptions.merge())
+            .addOnSuccessListener { Log.d(TAG, "Token salvo no Firestore") }
+            .addOnFailureListener { e -> Log.e(TAG, "Falha Firestore token: ${e.message}") }
+
+        // tenta obter escola (Firestore -> RTDB fallback) e inscrever em tópico
+        firestore.collection("usuarios").document(uid).get()
+            .addOnSuccessListener { doc ->
+                val escola = doc.getString("escola")
+                if (!escola.isNullOrBlank()) {
+                    val topic = normalizeTopic(escola)
+                    FirebaseMessaging.getInstance().subscribeToTopic(topic)
+                        .addOnSuccessListener { Log.d(TAG, "Inscrito no tópico: $topic") }
+                        .addOnFailureListener { e -> Log.e(TAG, "Falha ao inscrever tópico: ${e.message}") }
+                } else {
+                    FirebaseDatabase.getInstance().getReference("usuarios").child(uid).get()
+                        .addOnSuccessListener { snap ->
+                            val escolaRt = snap.child("escola").getValue(String::class.java)
+                            if (!escolaRt.isNullOrBlank()) {
+                                val topic = normalizeTopic(escolaRt)
+                                FirebaseMessaging.getInstance().subscribeToTopic(topic)
+                                    .addOnSuccessListener { Log.d(TAG, "Inscrito tópico RTDB: $topic") }
+                                    .addOnFailureListener { e -> Log.e(TAG, "Falha subscrib RTDB: ${e.message}") }
+                            } else {
+                                Log.d(TAG, "Escola não encontrada (não será inscrito em tópico)")
+                            }
+                        }
+                }
             }
-            .addOnFailureListener { e ->
-                Log.e(TAG, "Erro ao salvar token no Firestore: ${e.message}")
-            }
+            .addOnFailureListener { e -> Log.e(TAG, "Falha ao ler usuario Firestore: ${e.message}") }
     }
 
-    /**
-     * Exibe a notificação no sistema (Android Notification Manager)
-     */
+    private fun normalizeTopic(escola: String): String {
+        return escola.lowercase(Locale.ROOT).replace("[^a-z0-9]".toRegex(), "_")
+    }
+
     private fun sendNotification(title: String, body: String) {
         val intent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -103,7 +122,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        // Criar canal no Android 8+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,

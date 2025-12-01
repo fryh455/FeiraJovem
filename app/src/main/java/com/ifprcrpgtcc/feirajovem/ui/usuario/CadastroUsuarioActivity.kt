@@ -11,15 +11,10 @@ import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.messaging.FirebaseMessaging
 import com.ifprcrpgtcc.feirajovem.R
+import com.ifprcrpgtcc.feirajovem.baseclasses.Usuario
 import com.ifprcrpgtcc.feirajovem.ui.login.LoginActivity
-
-// Modelo usado no Realtime Database
-data class Usuario(
-    val nome: String = "",
-    val email: String = "",
-    val escola: String = ""
-)
 
 class CadastroUsuarioActivity : AppCompatActivity() {
 
@@ -37,10 +32,6 @@ class CadastroUsuarioActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var database: DatabaseReference
     private val firestore = FirebaseFirestore.getInstance()
-
-    companion object {
-        private const val TAG = "CadastroUsuarioActivity"
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,96 +74,79 @@ class CadastroUsuarioActivity : AppCompatActivity() {
     }
 
     private fun highlightTab(isEntrarSelected: Boolean) {
-        val darkGray = ContextCompat.getColor(this, R.color.gray_dark)
-        val lightGray = ContextCompat.getColor(this, R.color.gray_light)
+        val dark = ContextCompat.getColor(this, R.color.gray_dark)
+        val light = ContextCompat.getColor(this, R.color.gray_light)
 
-        if (isEntrarSelected) {
-            btnEntrarTab.setBackgroundColor(darkGray)
-            btnCadastrarTab.setBackgroundColor(lightGray)
-        } else {
-            btnEntrarTab.setBackgroundColor(lightGray)
-            btnCadastrarTab.setBackgroundColor(darkGray)
-        }
+        btnEntrarTab.setBackgroundColor(if (isEntrarSelected) dark else light)
+        btnCadastrarTab.setBackgroundColor(if (isEntrarSelected) light else dark)
     }
 
     private fun createAccount() {
         val nome = registerNameEditText.text.toString().trim()
         val email = registerEmailEditText.text.toString().trim()
         val senha = registerPasswordEditText.text.toString().trim()
-        val confirmarSenha = registerConfirmPasswordEditText.text.toString().trim()
+        val confirmar = registerConfirmPasswordEditText.text.toString().trim()
         val escola = registerSchoolSpinner.selectedItem.toString()
 
         if (nome.isEmpty() || email.isEmpty() || senha.isEmpty() ||
-            confirmarSenha.isEmpty() || escola == "Selecione sua escola") {
-            Toast.makeText(this, "Preencha todos os campos corretamente.", Toast.LENGTH_SHORT).show()
+            confirmar.isEmpty() || escola == "Selecione sua escola") {
+            Toast.makeText(this, "Preencha todos os campos.", Toast.LENGTH_SHORT).show()
             return
         }
 
-        if (senha != confirmarSenha) {
+        if (senha != confirmar) {
             Toast.makeText(this, "As senhas não coincidem.", Toast.LENGTH_SHORT).show()
             return
         }
 
         if (senha.length < 6) {
-            Toast.makeText(this, "A senha deve ter no mínimo 6 caracteres.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "A senha deve ter ao menos 6 caracteres.", Toast.LENGTH_SHORT).show()
             return
         }
 
         auth.createUserWithEmailAndPassword(email, senha)
-            .addOnCompleteListener(this) { task ->
-                if (task.isSuccessful) {
-                    val user = auth.currentUser
-                    if (user != null) {
-                        updateProfile(user, nome)
+            .addOnSuccessListener {
+                val user = auth.currentUser ?: return@addOnSuccessListener
+                updateProfile(user, nome)
 
-                        val usuario = Usuario(nome, email, escola)
+                FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
 
-                        // Salva no Realtime Database
-                        database.child("usuarios").child(user.uid).setValue(usuario)
-                            .addOnSuccessListener {
-                                // Versão mínima para Firestore (para notificações)
-                                val fsMap = hashMapOf(
-                                    "nome" to nome,
-                                    "email" to email,
-                                    "escola" to escola
-                                )
+                    val usuario = Usuario(
+                        key = user.uid,
+                        nome = nome,
+                        email = email,
+                        escola = escola,
+                        tipo = "user comum",
+                        token = token
+                    )
 
-                                firestore.collection("usuarios")
-                                    .document(user.uid)
-                                    .set(fsMap)
-                                    .addOnSuccessListener { /* opcional */ }
-                                    .addOnFailureListener { }
+                    // Realtime DB
+                    database.child("usuarios").child(user.uid).setValue(usuario)
 
-                                sendEmailVerification(user)
-                                Toast.makeText(this, "Cadastro realizado com sucesso!", Toast.LENGTH_SHORT).show()
+                    // Firestore
+                    firestore.collection("usuarios").document(user.uid)
+                        .set(usuario)
 
-                                startActivity(Intent(this, LoginActivity::class.java))
-                                finish()
-                            }
-                            .addOnFailureListener {
-                                Toast.makeText(this, "Erro ao salvar no banco.", Toast.LENGTH_LONG).show()
-                            }
-                    }
-                } else {
-                    Toast.makeText(this, "Erro: ${task.exception?.message}", Toast.LENGTH_LONG).show()
+                    sendEmailVerification(user)
+
+                    Toast.makeText(this, "Cadastro concluído!", Toast.LENGTH_SHORT).show()
+                    startActivity(Intent(this, LoginActivity::class.java))
+                    finish()
                 }
+            }
+            .addOnFailureListener {
+                Toast.makeText(this, "Erro: ${it.message}", Toast.LENGTH_LONG).show()
             }
     }
 
     private fun sendEmailVerification(user: FirebaseUser) {
         user.sendEmailVerification()
-            .addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    Toast.makeText(this, "Verificação enviada para ${user.email}.", Toast.LENGTH_LONG).show()
-                }
-            }
     }
 
     private fun updateProfile(user: FirebaseUser, nome: String) {
-        val profileUpdates = UserProfileChangeRequest.Builder()
+        val upd = UserProfileChangeRequest.Builder()
             .setDisplayName(nome)
             .build()
-
-        user.updateProfile(profileUpdates)
+        user.updateProfile(upd)
     }
 }
